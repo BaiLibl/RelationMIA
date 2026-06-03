@@ -50,8 +50,10 @@ def premia_scores(m_chosen, m_rejected, r_chosen, r_rejected):
     chosen = m_chosen - r_chosen
     rejected = r_rejected - m_rejected
     pair = (m_chosen - m_rejected) - (r_chosen - r_rejected)
+    noref = m_chosen - m_rejected
     return {
         "chosen": chosen,
         "rejected": rejected,
         "pair": pair,
+        "noref": noref,
     }
