@@ -33,4 +33,21 @@ def parse_args():
     # Direct online baseline: mia_population.py
     parser.add_argument("--results_csv", type=str, default=None)
 
+    # Multi-query attacks: multi-query.py
+    parser.add_argument("--query_method", type=str, default="semantic", choices=["semantic"])
+    parser.add_argument("--num_return_sequences", type=int, default=4)
+    parser.add_argument("--n_prompt_neighbors", type=int, default=2)
+    parser.add_argument("--n_chosen_neighbors", type=int, default=2)
+    parser.add_argument("--n_rejected_neighbors", type=int, default=2)
+    parser.add_argument("--semantic_threshold", type=float, default=0.85)
+    parser.add_argument("--edit_threshold", type=float, default=0.10)
+    parser.add_argument("--max_query_length", type=int, default=1024)
+    parser.add_argument("--max_probes_per_tuple", type=int, default=64)
+    parser.add_argument("--sem_K", type=int, default=16)
+    parser.add_argument("--paraphrase_model", type=str, default="facebook/bart-large-cnn")
+    parser.add_argument("--embed_model", type=str, default="sentence-transformers/all-MiniLM-L6-v2")
+    parser.add_argument("--disable_generation", action="store_true")
+    parser.add_argument("--no_length_normalize", action="store_true")
+    parser.add_argument("--save_query_logprobs", action="store_true")
+
     return parser.parse_args()
