@@ -19,6 +19,7 @@ backup*/
 *.npy
 reference/
 *.pdf
+*.pkl
 
 # Distribution / packaging
 .Python

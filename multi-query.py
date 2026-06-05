@@ -63,6 +63,11 @@ def build_semantic_config(args):
         max_probes_per_tuple=args.max_probes_per_tuple,
         paraphrase_model=args.paraphrase_model,
         embed_model=args.embed_model,
+        rewrite_profile=args.rewrite_profile,
+        temperature=args.rewrite_temperature,
+        min_length_ratio=args.min_length_ratio,
+        max_length_ratio=args.max_length_ratio,
+        max_new_tokens=args.max_new_tokens,
         disable_generation=args.disable_generation,
     )
 
@@ -239,7 +244,7 @@ def evaluate_scores(scores, labels, popu=1, n_popu=1000):
 
 
 def default_output_path(args):
-    return f"sem{args.sem_K}_{args.query_method}_{args.sft_data}_{args.dpo_data}_{args.model_name}.pkl"
+    return f"sem{args.sem_K}_{args.query_method}_{args.sft_data}_{args.dpo_data}_{args.model_name}_{args.rewrite_profile}.pkl"
 
 
 def save_rows(rows, path):
