@@ -11,7 +11,7 @@ from _args import parse_args
 from common import MODEL_DICT, model_paths
 from eval_tools import clean_array, mia_auc_tpr, population_wrapper, premia_scores
 from output_store import build_dpo_trainer, load_lora_model, load_mia_datasets, load_tokenizer
-from sem_query import SemanticNeighborBuilder, SemanticQueryConfig, build_semantic_relation_queries
+from sem_query import SemanticNeighborBuilder, SemanticQueryConfig, build_semantic_relation_queries_batch
 
 
 def dataset_to_samples(dataset, label):
@@ -31,6 +31,8 @@ def validate_args(args):
         raise ValueError("--n_member and --n_nonmember must be positive")
     if args.sem_K <= 0:
         raise ValueError("--sem_K must be positive")
+    if args.sem_generation_batch_size <= 0:
+        raise ValueError("--sem_generation_batch_size must be positive")
     for name in ["n_prompt_neighbors", "n_chosen_neighbors", "n_rejected_neighbors"]:
         if getattr(args, name) < 0:
             raise ValueError(f"--{name} must be non-negative")
@@ -61,6 +63,7 @@ def build_semantic_config(args):
         edit_threshold=args.edit_threshold,
         max_length=args.max_query_length,
         max_probes_per_tuple=args.max_probes_per_tuple,
+        sem_generation_batch_size=args.sem_generation_batch_size,
         paraphrase_model=args.paraphrase_model,
         embed_model=args.embed_model,
         rewrite_profile=args.rewrite_profile,
@@ -84,13 +87,27 @@ def iter_semantic_combinations(query_row, sem_k):
 
 
 def build_query_rows(args, samples):
+    if args.query_cache:
+        with open(args.query_cache, "rb") as handle:
+            rows = pickle.load(handle)
+        print(f"Loaded {len(rows)} semantic query rows from {args.query_cache}")
+        return rows
+
     cfg = build_semantic_config(args)
     neighbor_builder = SemanticNeighborBuilder(cfg)
     rows = []
-    for sample in tqdm(samples, desc="semantic query generation"):
-        row = build_semantic_relation_queries(sample, neighbor_builder, cfg)
-        row["label"] = int(sample.get("label", -1))
-        rows.append(row)
+    batch_size = max(1, int(args.sem_generation_batch_size))
+    for start in tqdm(range(0, len(samples), batch_size), desc="semantic query generation"):
+        batch_samples = samples[start: start + batch_size]
+        batch_rows = build_semantic_relation_queries_batch(batch_samples, neighbor_builder, cfg)
+        for row, sample in zip(batch_rows, batch_samples):
+            row["label"] = int(sample.get("label", -1))
+            rows.append(row)
+
+    if args.save_query_cache:
+        with open(args.save_query_cache, "wb") as handle:
+            pickle.dump(rows, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        print(f"Saved {len(rows)} semantic query rows to {args.save_query_cache}")
     return rows
 
 
