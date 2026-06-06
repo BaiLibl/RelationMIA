@@ -5,13 +5,6 @@ from textwrap import dedent
 import torch
 
 
-REWRITE_PROFILES = {
-    "strict": {"temperature": 0.5, "min_length_ratio": 0.0, "max_length_ratio": 999.0},
-    "balanced": {"temperature": 0.7, "min_length_ratio": 0.0, "max_length_ratio": 999.0},
-    "diverse": {"temperature": 0.9, "min_length_ratio": 0.0, "max_length_ratio": 999.0},
-}
-
-
 @dataclass
 class SemanticQueryConfig:
     num_return_sequences: int = 4
@@ -19,7 +12,7 @@ class SemanticQueryConfig:
     n_chosen_neighbors: int = 4
     n_rejected_neighbors: int = 4
     semantic_threshold: float = 0.80
-    edit_threshold: float = 0.02
+    edit_threshold: float = 0.20 # higher means more different
     max_length: int = 1024
     max_new_tokens: int = 256
     max_probes_per_tuple: int = 64
@@ -27,31 +20,19 @@ class SemanticQueryConfig:
     paraphrase_model: str = "Qwen/Qwen2.5-3B-Instruct"
     embed_model: str = "sentence-transformers/all-mpnet-base-v2"
     rewrite_profile: str = "balanced"
-    temperature: float = None
-    min_length_ratio: float = None
-    max_length_ratio: float = None
+    temperature: float = 0.8
+    min_length_ratio: float = 0.5
+    max_length_ratio: float = 2.0
     top_p: float = 0.9
     disable_generation: bool = False
-    debug: bool = False
+    debug: bool = True
     debug_max_chars: int = 500
-
-    def __post_init__(self):
-        if self.rewrite_profile not in REWRITE_PROFILES:
-            raise ValueError(f"Unknown rewrite_profile: {self.rewrite_profile}")
-        profile = REWRITE_PROFILES[self.rewrite_profile]
-        if self.temperature is None:
-            self.temperature = profile["temperature"]
-        if self.min_length_ratio is None:
-            self.min_length_ratio = profile["min_length_ratio"]
-        if self.max_length_ratio is None:
-            self.max_length_ratio = profile["max_length_ratio"]
 
 
 def normalized_edit_distance(a, b):
     if not a and not b:
         return 0.0
     return 1.0 - SequenceMatcher(None, a, b).ratio()
-
 
 def length_ratio(original, candidate):
     orig_len = max(1, len(str(original).split()))
@@ -165,12 +146,12 @@ class SemanticNeighborBuilder:
             if edit_dist < self.cfg.edit_threshold:
                 keep = False
                 reasons.append(f"edit<{self.cfg.edit_threshold:.3f}")
-            if ratio < self.cfg.min_length_ratio:
-                keep = False
-                reasons.append(f"len_ratio<{self.cfg.min_length_ratio:.2f}")
-            if ratio > self.cfg.max_length_ratio:
-                keep = False
-                reasons.append(f"len_ratio>{self.cfg.max_length_ratio:.2f}")
+            # if ratio < self.cfg.min_length_ratio:
+            #     keep = False
+            #     reasons.append(f"len_ratio<{self.cfg.min_length_ratio:.2f}")
+            # if ratio > self.cfg.max_length_ratio:
+            #     keep = False
+            #     reasons.append(f"len_ratio>{self.cfg.max_length_ratio:.2f}")
 
             if sim is not None and sim < self.cfg.semantic_threshold:
                 keep = False

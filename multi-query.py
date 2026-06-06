@@ -66,10 +66,6 @@ def build_semantic_config(args):
         sem_generation_batch_size=args.sem_generation_batch_size,
         paraphrase_model=args.paraphrase_model,
         embed_model=args.embed_model,
-        rewrite_profile=args.rewrite_profile,
-        temperature=args.rewrite_temperature,
-        min_length_ratio=args.min_length_ratio,
-        max_length_ratio=args.max_length_ratio,
         max_new_tokens=args.max_new_tokens,
         disable_generation=args.disable_generation,
     )
@@ -87,12 +83,6 @@ def iter_semantic_combinations(query_row, sem_k):
 
 
 def build_query_rows(args, samples):
-    if args.query_cache:
-        with open(args.query_cache, "rb") as handle:
-            rows = pickle.load(handle)
-        print(f"Loaded {len(rows)} semantic query rows from {args.query_cache}")
-        return rows
-
     cfg = build_semantic_config(args)
     neighbor_builder = SemanticNeighborBuilder(cfg)
     rows = []
@@ -103,11 +93,6 @@ def build_query_rows(args, samples):
         for row, sample in zip(batch_rows, batch_samples):
             row["label"] = int(sample.get("label", -1))
             rows.append(row)
-
-    if args.save_query_cache:
-        with open(args.save_query_cache, "wb") as handle:
-            pickle.dump(rows, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        print(f"Saved {len(rows)} semantic query rows to {args.save_query_cache}")
     return rows
 
 
@@ -261,7 +246,7 @@ def evaluate_scores(scores, labels, popu=1, n_popu=1000):
 
 
 def default_output_path(args):
-    return f"sem{args.sem_K}_{args.query_method}_{args.sft_data}_{args.dpo_data}_{args.model_name}_{args.rewrite_profile}.pkl"
+    return f"sem{args.sem_K}_{args.query_method}_{args.sft_data}_{args.dpo_data}_{args.model_name}.pkl"
 
 
 def save_rows(rows, path):
