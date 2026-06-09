@@ -25,7 +25,7 @@ class SemanticQueryConfig:
     max_length_ratio: float = 2.0
     top_p: float = 0.9
     disable_generation: bool = False
-    debug: bool = True
+    debug: bool = False
     debug_max_chars: int = 500
 
 
