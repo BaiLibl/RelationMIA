@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument("--sem_K", type=int, default=8, help="number of counterfactual response pairs per tuple")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--length_match_pool", type=int, default=50, help="sample replacements from this many closest-length responses")
+    parser.add_argument("--sigmoid_betas", type=str, default="0.01,0.05,0.1,0.2,0.5,1.0")
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--save_counter_logprobs", action="store_true")
     parser.add_argument("--popu", type=int, default=1)
@@ -167,7 +168,25 @@ def finite_std(values, default=0.0):
     return float(values[finite].std())
 
 
-def attach_counter_scores(samples, scored_records, save_counter_logprobs=False):
+def parse_betas(beta_text):
+    betas = []
+    for item in str(beta_text).split(","):
+        item = item.strip()
+        if item:
+            betas.append(float(item))
+    if not betas:
+        raise ValueError("--sigmoid_betas must contain at least one value")
+    return betas
+
+
+def sigmoid_margin(margin, beta):
+    x = np.clip(beta * np.asarray(margin, dtype=np.float64), -50.0, 50.0)
+    return 1.0 / (1.0 + np.exp(-x))
+
+
+def attach_counter_scores(samples, scored_records, save_counter_logprobs=False, sigmoid_betas=None):
+    if sigmoid_betas is None:
+        sigmoid_betas = []
     grouped = [[] for _ in samples]
     for record in scored_records:
         grouped[record["sample_idx"]].append(record)
@@ -205,6 +224,23 @@ def attach_counter_scores(samples, scored_records, save_counter_logprobs=False):
             "num_replace_chosen": len(replace_chosen),
             "num_replace_rejected": len(replace_rejected),
         }
+
+        for beta in sigmoid_betas:
+            beta_name = str(beta).replace(".", "p").replace("-", "m")
+            p_base = float(sigmoid_margin(base_margin, beta))
+
+            # Probability-space reference: E[sigmoid(beta * g_counter)].
+            p_chosen = finite_mean(sigmoid_margin(replace_chosen, beta), default=p_base)
+            p_rejected = finite_mean(sigmoid_margin(replace_rejected, beta), default=p_base)
+            p_all = finite_mean(sigmoid_margin(all_counter, beta), default=p_base)
+            row[f"sigmoid_chosen_ref_b{beta_name}"] = p_base - p_chosen
+            row[f"sigmoid_rejected_ref_b{beta_name}"] = p_base - p_rejected
+            row[f"sigmoid_all_ref_b{beta_name}"] = p_base - p_all
+
+            # Margin-space implicit reference: sigmoid(beta * g0) - sigmoid(beta * E[g_counter]).
+            row[f"sigmoid_mean_chosen_ref_b{beta_name}"] = p_base - float(sigmoid_margin(ref_chosen, beta))
+            row[f"sigmoid_mean_rejected_ref_b{beta_name}"] = p_base - float(sigmoid_margin(ref_rejected, beta))
+            row[f"sigmoid_mean_all_ref_b{beta_name}"] = p_base - float(sigmoid_margin(ref_all, beta))
         if save_counter_logprobs:
             row["counter_logprobs"] = [
                 {k: v for k, v in record.items() if k != "sample_idx"}
@@ -225,6 +261,8 @@ def evaluate(rows, popu=1, n_popu=1000):
         "score_z",
         "score_rank",
     ]
+    sigmoid_names = sorted([name for name in rows[0].keys() if name.startswith("sigmoid_")])
+    score_names.extend(sigmoid_names)
 
     print("=== Counterfactual Tuple MIA ===")
     for name in score_names:
@@ -234,7 +272,7 @@ def evaluate(rows, popu=1, n_popu=1000):
         if popu > 1:
             eval_scores, eval_labels = population_wrapper(scores, labels, popu, n_popu=n_popu)
         auc, tpr = mia_auc_tpr(eval_scores, eval_labels)
-        print(f"{name:>18s}: AUROC={auc:.4f}, TPR@FPR=0.05={tpr:.4f}, n={len(eval_scores)}")
+        print(f"{name:>30s}: AUROC={auc:.4f}, TPR@FPR=0.05={tpr:.4f}, n={len(eval_scores)}")
 
 
 def default_output_path(args):
@@ -256,6 +294,7 @@ def main():
     tokenizer = load_tokenizer(base_model)
     target_model = load_lora_model(base_model, paths["dpo"])
 
+    sigmoid_betas = parse_betas(args.sigmoid_betas)
     flat_records = build_counterfactual_records(
         samples,
         args.sem_K,
@@ -263,7 +302,12 @@ def main():
         length_match_pool=args.length_match_pool,
     )
     scored_records = compute_target_logprobs(flat_records, target_model, tokenizer)
-    rows = attach_counter_scores(samples, scored_records, save_counter_logprobs=args.save_counter_logprobs)
+    rows = attach_counter_scores(
+        samples,
+        scored_records,
+        save_counter_logprobs=args.save_counter_logprobs,
+        sigmoid_betas=sigmoid_betas,
+    )
 
     save_path = args.output or default_output_path(args)
     with open(save_path, "wb") as handle:
