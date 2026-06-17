@@ -11,7 +11,7 @@ from _args import parse_args
 from common import MODEL_DICT, model_paths
 from eval_tools import clean_array, mia_auc_tpr, population_wrapper, premia_scores
 from output_store import build_dpo_trainer, load_lora_model, load_mia_datasets, load_tokenizer
-from sem_query import SemanticNeighborBuilder, SemanticQueryConfig, build_semantic_relation_queries_batch
+from query_sem import SemanticNeighborBuilder, SemanticQueryConfig, build_semantic_relation_queries_batch
 
 
 def dataset_to_samples(dataset, label):
