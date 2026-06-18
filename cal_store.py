@@ -9,6 +9,7 @@ from tqdm import tqdm
 from common import MODEL_DICT, model_paths
 from output_store import load_lora_model, load_mia_datasets, load_plain_model, load_tokenizer
 
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Store target and calibration model tuple logprobs")
