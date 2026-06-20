@@ -20,7 +20,7 @@ backup*/
 reference/
 *.pdf
 *.pkl
-outputs/
+*outputs/
 
 # Distribution / packaging
 .Python

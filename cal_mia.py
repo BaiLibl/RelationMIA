@@ -78,14 +78,18 @@ def quantile_map(source_values, target_values):
     return mapped
 
 
-def add_calibrated_scores(scores, target_margin, cal_margin, suffix=""):
-    name_suffix = f"_{suffix}" if suffix else ""
-
-    scores[f"z_target_minus_cal{name_suffix}"] = standardize(target_margin) - standardize(cal_margin)
-    scores[f"rank_target_minus_cal{name_suffix}"] = percentile_rank(target_margin) - percentile_rank(cal_margin)
-
+def build_scores(target_margin, cal_margin):
+    rank_score = percentile_rank(target_margin) - percentile_rank(cal_margin)
     mapped_cal = quantile_map(cal_margin, target_margin)
-    scores[f"qmap_target_minus_cal{name_suffix}"] = target_margin - mapped_cal
+    qmap_score = target_margin - mapped_cal
+
+    return {
+        "target_minus_cal": target_margin - cal_margin,
+        "z_target_minus_cal": standardize(target_margin) - standardize(cal_margin),
+        "rank_target_minus_cal": rank_score,
+        "qmap_target_minus_cal": qmap_score,
+        "qmap_rank_ens": 0.5 * standardize(qmap_score) + 0.5 * standardize(rank_score),
+    }
 
 
 def main():
@@ -98,17 +102,12 @@ def main():
 
     target_margin = np.asarray([row["target_margin"] for row in rows], dtype=np.float64)
     cal_margin = np.asarray([row["cal_margin"] for row in rows], dtype=np.float64)
-    target_avg_margin = np.asarray([row["target_avg_margin"] for row in rows], dtype=np.float64)
-    cal_avg_margin = np.asarray([row["cal_avg_margin"] for row in rows], dtype=np.float64)
-
-    scores = {
-        "target_minus_cal": target_margin - cal_margin,
-        "target_minus_cal_avg": target_avg_margin - cal_avg_margin,
-    }
-    add_calibrated_scores(scores, target_margin, cal_margin)
-    add_calibrated_scores(scores, target_avg_margin, cal_avg_margin, suffix="avg")
+    scores = build_scores(target_margin, cal_margin)
 
     print(f"Loaded {len(rows)} rows from {args.input}")
+    print(f"cal_model: {cal_model}")
+    print(f"member: {int(labels.sum())} nonmember: {int((labels == 0).sum())}")
+    print("=== Calibration MIA ===")
     for name, score in scores.items():
         evaluate_score(name, score, labels, popu=args.popu, n_popu=args.n_popu)
 
