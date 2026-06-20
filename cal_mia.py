@@ -6,6 +6,9 @@ import numpy as np
 from eval_tools import clean_array, mia_auc_tpr, population_wrapper
 
 
+EPS = 1e-8
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="MIA with target minus calibration margin")
     parser.add_argument("--input", type=str, required=True)
@@ -24,6 +27,67 @@ def evaluate_score(name, scores, labels, popu=1, n_popu=1000):
     print(f"{name:>24s}: AUROC={auc:.4f}, TPR@FPR=0.05={tpr:.4f}, n={len(eval_scores)}")
 
 
+def standardize(values):
+    values = np.asarray(values, dtype=np.float64)
+    finite = np.isfinite(values)
+    out = np.zeros_like(values, dtype=np.float64)
+    if finite.sum() == 0:
+        return out
+    mean = values[finite].mean()
+    std = values[finite].std()
+    out[finite] = (values[finite] - mean) / (std + EPS)
+    return out
+
+
+def percentile_rank(values):
+    values = np.asarray(values, dtype=np.float64)
+    finite = np.isfinite(values)
+    out = np.zeros_like(values, dtype=np.float64)
+    if finite.sum() == 0:
+        return out
+    finite_values = values[finite]
+    sorted_values = np.sort(finite_values)
+    left = np.searchsorted(sorted_values, finite_values, side="left")
+    right = np.searchsorted(sorted_values, finite_values, side="right")
+    out[finite] = 0.5 * (left + right) / max(len(sorted_values), 1)
+    return out
+
+
+def quantile_map(source_values, target_values):
+    source_values = np.asarray(source_values, dtype=np.float64)
+    target_values = np.asarray(target_values, dtype=np.float64)
+    finite_source = np.isfinite(source_values)
+    finite_target = np.isfinite(target_values)
+    mapped = np.zeros_like(source_values, dtype=np.float64)
+    if finite_source.sum() == 0 or finite_target.sum() == 0:
+        return mapped
+
+    src_sorted = np.sort(source_values[finite_source])
+    tgt_sorted = np.sort(target_values[finite_target])
+    src_vals = source_values[finite_source]
+    left = np.searchsorted(src_sorted, src_vals, side="left")
+    right = np.searchsorted(src_sorted, src_vals, side="right")
+    percentiles = 0.5 * (left + right) / max(len(src_sorted), 1)
+
+    if len(tgt_sorted) == 1:
+        mapped[finite_source] = tgt_sorted[0]
+        return mapped
+
+    positions = percentiles * (len(tgt_sorted) - 1)
+    mapped[finite_source] = np.interp(positions, np.arange(len(tgt_sorted)), tgt_sorted)
+    return mapped
+
+
+def add_calibrated_scores(scores, target_margin, cal_margin, suffix=""):
+    name_suffix = f"_{suffix}" if suffix else ""
+
+    scores[f"z_target_minus_cal{name_suffix}"] = standardize(target_margin) - standardize(cal_margin)
+    scores[f"rank_target_minus_cal{name_suffix}"] = percentile_rank(target_margin) - percentile_rank(cal_margin)
+
+    mapped_cal = quantile_map(cal_margin, target_margin)
+    scores[f"qmap_target_minus_cal{name_suffix}"] = target_margin - mapped_cal
+
+
 def main():
     args = parse_args()
     with open(args.input, "rb") as handle:
@@ -38,18 +102,13 @@ def main():
     cal_avg_margin = np.asarray([row["cal_avg_margin"] for row in rows], dtype=np.float64)
 
     scores = {
-        "target_margin": target_margin,
-        "cal_margin": cal_margin,
         "target_minus_cal": target_margin - cal_margin,
-        "target_avg_margin": target_avg_margin,
-        "cal_avg_margin": cal_avg_margin,
         "target_minus_cal_avg": target_avg_margin - cal_avg_margin,
     }
+    add_calibrated_scores(scores, target_margin, cal_margin)
+    add_calibrated_scores(scores, target_avg_margin, cal_avg_margin, suffix="avg")
 
     print(f"Loaded {len(rows)} rows from {args.input}")
-    print(f"cal_model: {cal_model}")
-    print(f"member: {int(labels.sum())} nonmember: {int((labels == 0).sum())}")
-    print("=== Calibration MIA: target - cal ===")
     for name, score in scores.items():
         evaluate_score(name, score, labels, popu=args.popu, n_popu=args.n_popu)
 
