@@ -1,8 +1,39 @@
 # 2026-06-20
 
-for f in outputs/*uf*.pkl; do
-    python cal_mia.py --input "$f"
+run_cal_mia_mapping() {
+  local background="$1"
+  local input="$2"
+  local model="${3:-ridge}"
+
+  if [ -z "$background" ] || [ -z "$input" ]; then
+    echo "Usage: run_cal_mia_mapping <background_pkl> <input_pkl> [model]"
+    return 1
+  fi
+
+  local bg_name
+  bg_name="$(basename "$background" .pkl)"
+  local mapping_path="mapping/${bg_name}_${model}_mapping.pkl"
+
+  python cal_bg_mapping.py \
+    --background "$background" \
+    --model "$model" \
+    --output "$mapping_path"
+
+  python cal_mia_mapping.py \
+    --input "$input" \
+    --mapping "$mapping_path"
+}
+
+for model in linear ridge huber gbr hgb rf; do
+  run_cal_mia_mapping \
+    bg_outputs/cal_bg_uf_qwen-0.5b_Qwen2.5-1.5B-Instruct.pkl \
+    outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-1.5B-Instruct.pkl \
+    "$model"
 done
+
+# for f in outputs/*uf*.pkl; do
+#     python cal_mia.py --input "$f"
+# done
 
 # cal_store_run() {
 #     CUDA_VISIBLE_DEVICES=$1 python cal_store.py \
