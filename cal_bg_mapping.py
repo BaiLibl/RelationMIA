@@ -145,9 +145,9 @@ def main():
         )
 
     print(f"Loaded {len(bg_rows)} background rows from {args.background}")
-    print(f"finite training rows: {len(train_y)}")
+    # print(f"finite training rows: {len(train_y)}")
     print(f"model: {args.model}")
-    print("features:", ", ".join(FEATURE_NAMES))
+    # print("features:", ", ".join(FEATURE_NAMES))
     print_linear_coefficients(model)
     print(f"Saved mapping model to {save_path}")
 

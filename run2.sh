@@ -31,6 +31,13 @@ for model in linear ridge huber gbr hgb rf; do
     "$model"
 done
 
+for model in linear ridge huber gbr hgb rf; do
+  run_cal_mia_mapping \
+    bg_outputs/cal_bg_uf_qwen-0.5b_SmolLM2-1.7B-Instruct.pkl \
+    outputs/cal_score_uf_uf_qwen-0.5b_SmolLM2-1.7B-Instruct.pkl \
+    "$model"
+done
+
 # for f in outputs/*uf*.pkl; do
 #     python cal_mia.py --input "$f"
 # done

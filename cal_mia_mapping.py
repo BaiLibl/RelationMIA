@@ -93,12 +93,12 @@ def main():
     mapping_residual = raw_margin - mapped_margin
 
     print(f"Loaded {len(rows)} eval rows from {args.input}")
-    print(f"Loaded mapping model from {args.mapping}")
-    print(f"mapping model: {mapping.get('model_type', 'unknown')}")
-    print(f"mapping background: {mapping.get('background', 'unknown')}")
-    print(f"member: {int(labels.sum())} nonmember: {int((labels == 0).sum())}")
-    print("features:", ", ".join(FEATURE_NAMES))
-    print("=== Output-Space Mapping Calibration MIA ===")
+    # print(f"Loaded mapping model from {args.mapping}")
+    # print(f"mapping model: {mapping.get('model_type', 'unknown')}")
+    # print(f"mapping background: {mapping.get('background', 'unknown')}")
+    # print(f"member: {int(labels.sum())} nonmember: {int((labels == 0).sum())}")
+    # print("features:", ", ".join(FEATURE_NAMES))
+    # print("=== Output-Space Mapping Calibration MIA ===")
     evaluate_score("raw_target_margin", raw_margin, labels, args.popu, args.n_popu)
     evaluate_score("mapping_residual", mapping_residual, labels, args.popu, args.n_popu)
 
