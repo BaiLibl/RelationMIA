@@ -8,12 +8,11 @@ __pycache__/
 
 # add
 save*/
-*.sh
 *.log
 test*
+*.csv
 *.txt
 backup*/
-*.csv
 *.ipynb
 *.png
 *.npy
