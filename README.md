@@ -1,7 +1,4 @@
 ---
-license: gemma
-library_name: transformers
-pipeline_tag: text-generation
 extra_gated_heading: Access Gemma on Hugging Face
 extra_gated_prompt: >-
   To access Gemma on Hugging Face, you’re required to review and agree to
