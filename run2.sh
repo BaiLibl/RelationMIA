@@ -1,42 +1,52 @@
 # 2026-06-20
 
-run_cal_mia_mapping() {
-  local background="$1"
-  local input="$2"
-  local model="${3:-ridge}"
 
-  if [ -z "$background" ] || [ -z "$input" ]; then
-    echo "Usage: run_cal_mia_mapping <background_pkl> <input_pkl> [model]"
-    return 1
-  fi
+python cal_mia_lira.py \
+  --inputs \
+  outputs/cal_score_uf_uf_qwen-0.5b_Phi-3-mini-4k-instruct.pkl \
+  outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-0.5B-Instruct.pkl \
+  outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-1.5B-Instruct.pkl \
+  outputs/cal_score_uf_uf_qwen-0.5b_SmolLM2-1.7B-Instruct.pkl \
+  outputs/cal_score_uf_uf_qwen-0.5b_TinyLlama-1.1B-Chat-v1.0.pkl
 
-  local bg_name
-  bg_name="$(basename "$background" .pkl)"
-  local mapping_path="mapping/${bg_name}_${model}_mapping.pkl"
+# 2026-8-26
+# run_cal_mia_mapping() {
+#   local background="$1"
+#   local input="$2"
+#   local model="${3:-ridge}"
 
-  python cal_bg_mapping.py \
-    --background "$background" \
-    --model "$model" \
-    --output "$mapping_path"
+#   if [ -z "$background" ] || [ -z "$input" ]; then
+#     echo "Usage: run_cal_mia_mapping <background_pkl> <input_pkl> [model]"
+#     return 1
+#   fi
 
-  python cal_mia_mapping.py \
-    --input "$input" \
-    --mapping "$mapping_path"
-}
+#   local bg_name
+#   bg_name="$(basename "$background" .pkl)"
+#   local mapping_path="mapping/${bg_name}_${model}_mapping.pkl"
 
-for model in linear ridge huber gbr hgb rf; do
-  run_cal_mia_mapping \
-    bg_outputs/cal_bg_uf_qwen-0.5b_Qwen2.5-1.5B-Instruct.pkl \
-    outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-1.5B-Instruct.pkl \
-    "$model"
-done
+#   python cal_bg_mapping.py \
+#     --background "$background" \
+#     --model "$model" \
+#     --output "$mapping_path"
 
-for model in linear ridge huber gbr hgb rf; do
-  run_cal_mia_mapping \
-    bg_outputs/cal_bg_uf_qwen-0.5b_SmolLM2-1.7B-Instruct.pkl \
-    outputs/cal_score_uf_uf_qwen-0.5b_SmolLM2-1.7B-Instruct.pkl \
-    "$model"
-done
+#   python cal_mia_mapping.py \
+#     --input "$input" \
+#     --mapping "$mapping_path"
+# }
+
+# for model in linear ridge huber gbr hgb rf; do
+#   run_cal_mia_mapping \
+#     bg_outputs/cal_bg_uf_qwen-0.5b_Qwen2.5-1.5B-Instruct.pkl \
+#     outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-1.5B-Instruct.pkl \
+#     "$model"
+# done
+
+# for model in linear ridge huber gbr hgb rf; do
+#   run_cal_mia_mapping \
+#     bg_outputs/cal_bg_uf_qwen-0.5b_SmolLM2-1.7B-Instruct.pkl \
+#     outputs/cal_score_uf_uf_qwen-0.5b_SmolLM2-1.7B-Instruct.pkl \
+#     "$model"
+# done
 
 # for f in outputs/*uf*.pkl; do
 #     python cal_mia.py --input "$f"
