@@ -1,12 +1,27 @@
 # 2026-06-20
 
-python mia_likelihood_displacement.py \
-  --input outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-0.5B-Instruct.pkl \
-  --clf lr
+python mia_generated_rank.py \
+  --model_name qwen-0.5b \
+  --sft_data uf \
+  --dpo_data uf \
+  --n_member 1000 \
+  --n_nonmember 1000 \
+  --num_responses 8 \
+  --topk 2 \
+  --output outputs/generated_rank_uf_uf_qwen-0.5b_k8.pkl
 
-python mia_likelihood_displacement.py \
-  --input outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-0.5B-Instruct.pkl \
-  --clf rf
+# python mia_generated_rank.py \
+#   --topk 2 \
+#   --output outputs/generated_rank_uf_uf_qwen-0.5b_k8.pkl
+
+
+# python mia_likelihood_displacement.py \
+#   --input outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-0.5B-Instruct.pkl \
+#   --clf lr
+
+# python mia_likelihood_displacement.py \
+#   --input outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-0.5B-Instruct.pkl \
+#   --clf rf
 
 # python cal_mia_lira.py \
 #   --inputs \
