@@ -1,13 +1,20 @@
 # 2026-06-20
 
+python mia_likelihood_displacement.py \
+  --input outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-0.5B-Instruct.pkl \
+  --clf lr
 
-python cal_mia_lira.py \
-  --inputs \
-  outputs/cal_score_uf_uf_qwen-0.5b_Phi-3-mini-4k-instruct.pkl \
-  outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-0.5B-Instruct.pkl \
-  outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-1.5B-Instruct.pkl \
-  outputs/cal_score_uf_uf_qwen-0.5b_SmolLM2-1.7B-Instruct.pkl \
-  outputs/cal_score_uf_uf_qwen-0.5b_TinyLlama-1.1B-Chat-v1.0.pkl
+python mia_likelihood_displacement.py \
+  --input outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-0.5B-Instruct.pkl \
+  --clf rf
+
+# python cal_mia_lira.py \
+#   --inputs \
+#   outputs/cal_score_uf_uf_qwen-0.5b_Phi-3-mini-4k-instruct.pkl \
+#   outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-0.5B-Instruct.pkl \
+#   outputs/cal_score_uf_uf_qwen-0.5b_Qwen2.5-1.5B-Instruct.pkl \
+#   outputs/cal_score_uf_uf_qwen-0.5b_SmolLM2-1.7B-Instruct.pkl \
+#   outputs/cal_score_uf_uf_qwen-0.5b_TinyLlama-1.1B-Chat-v1.0.pkl
 
 # 2026-8-26
 # run_cal_mia_mapping() {
