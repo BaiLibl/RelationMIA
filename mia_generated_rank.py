@@ -28,6 +28,7 @@ def parse_args():
     parser.add_argument("--max_new_tokens", type=int, default=256)
     parser.add_argument("--generation_batch_size", type=int, default=4)
     parser.add_argument("--logprob_batch_size", type=int, default=8)
+    parser.add_argument("--prompt_format", type=str, default="raw", choices=["raw", "assistant"])
     parser.add_argument("--topk", type=int, default=2)
     parser.add_argument("--min_words", type=int, default=1)
     parser.add_argument("--seed", type=int, default=42)
@@ -66,8 +67,10 @@ def unique_keep_order(texts):
     return out
 
 
-def build_generation_prompt(prompt):
+def build_generation_prompt(prompt, prompt_format="raw"):
     prompt = str(prompt).strip()
+    if prompt_format == "raw":
+        return prompt + "\n"
     return (
         "You are a helpful assistant. Provide a direct answer to the user's request.\n\n"
         f"User:\n{prompt}\n\n"
@@ -91,7 +94,7 @@ def generate_responses(samples, model, tokenizer, args):
 
     for start in tqdm(range(0, len(samples), args.generation_batch_size), desc="generate responses"):
         batch_samples = samples[start: start + args.generation_batch_size]
-        prompts = [build_generation_prompt(sample["prompt"]) for sample in batch_samples]
+        prompts = [build_generation_prompt(sample["prompt"], args.prompt_format) for sample in batch_samples]
         inputs = encode_prompts(tokenizer, prompts, args.max_prompt_length)
         inputs = {key: value.to(device) for key, value in inputs.items()}
         input_len = inputs["input_ids"].shape[-1]
@@ -373,7 +376,7 @@ def main():
 
     print(f"Loaded {len(rows)} rows")
     print(f"member: {int(labels.sum())} nonmember: {int((labels == 0).sum())}")
-    print(f"num_responses={args.num_responses} topk={args.topk}")
+    print(f"num_responses={args.num_responses} topk={args.topk} prompt_format={args.prompt_format}")
     print(
         "valid responses: "
         f"mean={valid_counts.mean():.2f}, median={np.median(valid_counts):.2f}, "

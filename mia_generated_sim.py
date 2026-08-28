@@ -26,6 +26,7 @@ def parse_args():
     parser.add_argument("--max_prompt_length", type=int, default=1024)
     parser.add_argument("--max_new_tokens", type=int, default=256)
     parser.add_argument("--generation_batch_size", type=int, default=4)
+    parser.add_argument("--prompt_format", type=str, default="raw", choices=["raw", "assistant"])
     parser.add_argument("--embed_model", type=str, default="sentence-transformers/all-mpnet-base-v2")
     parser.add_argument("--embed_batch_size", type=int, default=64)
     parser.add_argument("--topk", type=int, default=2)
@@ -66,8 +67,10 @@ def unique_keep_order(texts):
     return out
 
 
-def build_generation_prompt(prompt):
+def build_generation_prompt(prompt, prompt_format="raw"):
     prompt = str(prompt).strip()
+    if prompt_format == "raw":
+        return prompt + "\n"
     return (
         "You are a helpful assistant. Provide a direct answer to the user's request.\n\n"
         f"User:\n{prompt}\n\n"
@@ -91,7 +94,7 @@ def generate_responses(samples, model, tokenizer, args):
 
     for start in tqdm(range(0, len(samples), args.generation_batch_size), desc="generate responses"):
         batch_samples = samples[start: start + args.generation_batch_size]
-        prompts = [build_generation_prompt(sample["prompt"]) for sample in batch_samples]
+        prompts = [build_generation_prompt(sample["prompt"], args.prompt_format) for sample in batch_samples]
         inputs = encode_prompts(tokenizer, prompts, args.max_prompt_length)
         inputs = {key: value.to(device) for key, value in inputs.items()}
         input_len = inputs["input_ids"].shape[-1]
@@ -194,6 +197,7 @@ def attach_similarity(rows, embedder, args):
         chosen_emb = embeddings[start: start + 1]
         rejected_emb = embeddings[start + 1: start + 2]
         response_embs = embeddings[start + 2: start + 2 + n_responses]
+        chosen_rejected_sim = float(cosine_matrix(chosen_emb, rejected_emb).reshape(-1)[0])
 
         if n_responses == 0:
             sim_chosen = np.asarray([], dtype=np.float64)
@@ -211,6 +215,7 @@ def attach_similarity(rows, embedder, args):
         row["sim_chosen"] = sim_chosen.tolist()
         row["sim_rejected"] = sim_rejected.tolist()
         row["sim_gap"] = gap.tolist()
+        row["chosen_rejected_sim"] = chosen_rejected_sim
 
         row["sim_mean_gap"] = finite_mean(gap)
         row["sim_median_gap"] = float(np.median(gap)) if len(gap) else 0.0
@@ -299,14 +304,26 @@ def main():
 
     labels, results = evaluate_scores(rows, popu=args.popu, n_popu=args.n_popu)
     valid_counts = np.asarray([row.get("num_valid_responses", 0) for row in rows], dtype=np.int64)
+    chosen_rejected_sims = score_array(rows, "chosen_rejected_sim")
+    mean_sim_chosen = np.asarray([finite_mean(row.get("sim_chosen", [])) for row in rows], dtype=np.float64)
+    mean_sim_rejected = np.asarray([finite_mean(row.get("sim_rejected", [])) for row in rows], dtype=np.float64)
 
     print(f"Loaded {len(rows)} rows")
     print(f"member: {int(labels.sum())} nonmember: {int((labels == 0).sum())}")
-    print(f"num_responses={args.num_responses} topk={args.topk} sim_filter={args.sim_filter}")
+    print(
+        f"num_responses={args.num_responses} topk={args.topk} "
+        f"sim_filter={args.sim_filter} prompt_format={args.prompt_format}"
+    )
     print(
         "valid responses: "
         f"mean={valid_counts.mean():.2f}, median={np.median(valid_counts):.2f}, "
         f"min={valid_counts.min()}, max={valid_counts.max()}"
+    )
+    print(
+        "similarity diagnostics: "
+        f"chosen_rejected={chosen_rejected_sims.mean():.4f}, "
+        f"gen_chosen={mean_sim_chosen.mean():.4f}, "
+        f"gen_rejected={mean_sim_rejected.mean():.4f}"
     )
     print("=== Generated Similarity Ranking MIA ===")
     for name, auc, tpr, n in results:
