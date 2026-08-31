@@ -180,7 +180,7 @@ def compute_sample_logprobs(model, ref_model, tokenizer, sample):
     return row
 
 
-def collect_logprobs_generated(model, tokenizer, train_ds, eval_ds, args, ref_model=None, max_samples=2000):
+def collect_logprobs_generated(args, trainer, model, tokenizer, ref_model=None, max_samples=2000):
     rows = []
     k = args.num_return_sequences
     max_new_tokens = args.max_new_tokens
@@ -208,9 +208,12 @@ def collect_logprobs_generated(model, tokenizer, train_ds, eval_ds, args, ref_mo
             row["logps"] = logps
             rows.append(row)
             seen += 1
+            print("PROMPT:", prompt)
+            for res in response:
+                print("RESP:", res)
 
-    process(train_ds, label=1)
-    process(eval_ds, label=0)
+    process(trainer.get_train_dataloader(), label=1)
+    process(trainer.get_eval_dataloader(), label=0)
     return rows
 
 
@@ -237,8 +240,8 @@ def main():
     target_model = load_lora_model(base_model, paths["dpo"])
     save_path = args.output or f"premia_{args.sft_data}_{args.dpo_data}_{args.model_name}.npy"
     trainer = build_dpo_trainer(target_model, tokenizer, train_ds, eval_ds)
-    rows = collect_logprobs(trainer, target_model, ref_model, max_samples=max(args.n_member, args.n_nonmember))
-
+    # rows = collect_logprobs(trainer, target_model, ref_model, max_samples=max(args.n_member, args.n_nonmember))
+    rows = collect_logprobs_generated(args, trainer, target_model, ref_model, max_samples=max(args.n_member, args.n_nonmember))
     np.save(save_path, rows)
     print(f"Saved {len(rows)} samples to {save_path}")
 
