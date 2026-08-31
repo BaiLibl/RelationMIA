@@ -153,31 +153,13 @@ def compute_response_logps(model, tokenizer, prompt, responses):
     return [float(logp) for logp in logps]
 
 
-def compute_sample_logprobs(model, ref_model, tokenizer, sample):
-    dataset = Dataset.from_list([
-        {
-            "prompt": sample["prompt"],
-            "chosen": sample["chosen"],
-            "rejected": sample["rejected"],
-        }
-    ])
-    trainer = build_dpo_trainer(model, tokenizer, dataset, dataset)
-    batch = next(iter(trainer.get_eval_dataloader()))
-
-    with torch.no_grad():
-        out = trainer.concatenated_forward(model, batch)
-        row = {
-            "m_chosen": float(out["chosen_logps"].detach().cpu().numpy()[0]),
-            "m_rejected": float(out["rejected_logps"].detach().cpu().numpy()[0]),
-        }
-        if ref_model is not None:
-            ref = trainer.concatenated_forward(ref_model, batch)
-            row["r_chosen"] = float(ref["chosen_logps"].detach().cpu().numpy()[0])
-            row["r_rejected"] = float(ref["rejected_logps"].detach().cpu().numpy()[0])
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-    return row
+def decode_batch_text(tokenizer, batch, key, index):
+    ids = batch[key][index]
+    if torch.is_tensor(ids):
+        ids = ids.detach().cpu().tolist()
+    if tokenizer.pad_token_id is not None:
+        ids = [token_id for token_id in ids if token_id != tokenizer.pad_token_id]
+    return tokenizer.decode(ids, skip_special_tokens=True)
 
 
 def collect_logprobs_generated(args, tokenizer, trainer, model, ref_model=None, max_samples=2000):
@@ -186,34 +168,52 @@ def collect_logprobs_generated(args, tokenizer, trainer, model, ref_model=None, 
     max_new_tokens = args.max_new_tokens
     print(f"Generating {k} responses per sample and collecting target logps...")
 
-    def process(dataset, label):
+    def process(dataloader, label):
         seen = 0
-        for sample in tqdm(dataset, desc=f"label={label}"):
+        for batch in tqdm(dataloader, desc=f"label={label}"):
             if seen >= max_samples:
                 break
 
-            prompt = sample["prompt"]
-            row = compute_sample_logprobs(model, ref_model, tokenizer, sample)
-            responses = generate_k_responses(
-                model,
-                tokenizer,
-                prompt,
-                k=k,
-                max_new_tokens=max_new_tokens,
-            )
-            logps = compute_response_logps(model, tokenizer, prompt, responses)
+            with torch.no_grad():
+                out = trainer.concatenated_forward(model, batch)
+                row = {
+                    "m_chosen": out["chosen_logps"].detach().cpu().numpy(),
+                    "m_rejected": out["rejected_logps"].detach().cpu().numpy(),
+                }
+                if ref_model is not None:
+                    ref = trainer.concatenated_forward(ref_model, batch)
+                    row["r_chosen"] = ref["chosen_logps"].detach().cpu().numpy()
+                    row["r_rejected"] = ref["rejected_logps"].detach().cpu().numpy()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
-            row["label"] = label
-            row["response"] = responses
-            row["logps"] = logps
-            rows.append(row)
-            seen += 1
-            print("PROMPT:", prompt)
-            for res in responses:
-                print("RESP:", res)
+            batch_size = len(row["m_chosen"])
+            keep = min(batch_size, max_samples - seen)
+            for i in range(keep):
+                prompt = decode_batch_text(tokenizer, batch, "prompt_input_ids", i)
+                # chosen = decode_batch_text(tokenizer, batch, "chosen_input_ids", i)
+                # rejected = decode_batch_text(tokenizer, batch, "rejected_input_ids", i)
+                responses = generate_k_responses(
+                    model,
+                    tokenizer,
+                    prompt,
+                    k=k,
+                    max_new_tokens=max_new_tokens,
+                )
+                logps = compute_response_logps(model, tokenizer, prompt, responses)
 
-    process(trainer.train_dataset, label=1)
-    process(trainer.eval_dataset, label=0)
+                sample = {key: value[i] for key, value in row.items()}
+                sample["label"] = label
+                sample["response"] = responses
+                sample["logps"] = logps
+                rows.append(sample)
+                print("PROMPT:", prompt)
+                for res in responses:
+                    print("RESP:", res)
+            seen += batch_size
+
+    process(trainer.get_train_dataloader(), label=1)
+    process(trainer.get_eval_dataloader(), label=0)
     return rows
 
 
@@ -241,7 +241,14 @@ def main():
     save_path = args.output or f"premia_{args.sft_data}_{args.dpo_data}_{args.model_name}.npy"
     trainer = build_dpo_trainer(target_model, tokenizer, train_ds, eval_ds)
     # rows = collect_logprobs(trainer, target_model, ref_model, max_samples=max(args.n_member, args.n_nonmember))
-    rows = collect_logprobs_generated(args, tokenizer, trainer, target_model, ref_model, max_samples=max(args.n_member, args.n_nonmember))
+    rows = collect_logprobs_generated(
+        args,
+        tokenizer,
+        trainer,
+        target_model,
+        ref_model,
+        max_samples=max(args.n_member, args.n_nonmember),
+    )
     np.save(save_path, rows)
     print(f"Saved {len(rows)} samples to {save_path}")
 
