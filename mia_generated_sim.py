@@ -3,18 +3,19 @@ import pickle
 
 import numpy as np
 import torch
+from datasets import Dataset
 from tqdm import tqdm
 
 from common import MODEL_DICT, model_paths
 from eval_tools import clean_array, mia_auc_tpr, population_wrapper
-from output_store import load_lora_model, load_mia_datasets, load_tokenizer
+from output_store import build_dpo_trainer, load_lora_model, load_mia_datasets, load_tokenizer
 
 
 EPS = 1e-8
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="MIA from generated-response semantic similarity ranking")
+    parser = argparse.ArgumentParser(description="MIA from target-generated response similarity")
     parser.add_argument("--model_name", type=str, default="qwen-0.5b", choices=MODEL_DICT.keys())
     parser.add_argument("--sft_data", type=str, default="uf")
     parser.add_argument("--dpo_data", type=str, default="uf")
@@ -26,7 +27,6 @@ def parse_args():
     parser.add_argument("--max_prompt_length", type=int, default=1024)
     parser.add_argument("--max_new_tokens", type=int, default=256)
     parser.add_argument("--generation_batch_size", type=int, default=4)
-    parser.add_argument("--prompt_format", type=str, default="raw", choices=["raw", "assistant"])
     parser.add_argument("--embed_model", type=str, default="sentence-transformers/all-mpnet-base-v2")
     parser.add_argument("--embed_batch_size", type=int, default=64)
     parser.add_argument("--topk", type=int, default=2)
@@ -35,8 +35,8 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--popu", type=int, default=1)
     parser.add_argument("--n_popu", type=int, default=1000)
-    parser.add_argument("--input", type=str, default=None, help="optional cached pkl produced by this script")
-    parser.add_argument("--output", type=str, default=None, help="optional path to cache generated rows")
+    parser.add_argument("--input", type=str, default=None, help="optional cached pkl with generated responses")
+    parser.add_argument("--output", type=str, default=None, help="optional path to save generated/scored rows")
     return parser.parse_args()
 
 
@@ -60,22 +60,17 @@ def unique_keep_order(texts):
     seen = set()
     out = []
     for text in texts:
-        key = " ".join(str(text).split())
+        key = clean_generation(text)
         if key and key not in seen:
             seen.add(key)
             out.append(key)
     return out
 
 
-def build_generation_prompt(prompt, prompt_format="raw"):
-    prompt = str(prompt).strip()
-    if prompt_format == "raw":
-        return prompt + "\n"
-    return (
-        "You are a helpful assistant. Provide a direct answer to the user's request.\n\n"
-        f"User:\n{prompt}\n\n"
-        "Assistant:"
-    )
+def generation_prompt(prompt):
+    # explore_datasets.py already stores prompt as prompt.rstrip() + "\n".
+    # Keep this exact conditioning string for generation.
+    return str(prompt)
 
 
 def encode_prompts(tokenizer, prompts, max_prompt_length):
@@ -94,10 +89,10 @@ def generate_responses(samples, model, tokenizer, args):
 
     for start in tqdm(range(0, len(samples), args.generation_batch_size), desc="generate responses"):
         batch_samples = samples[start: start + args.generation_batch_size]
-        prompts = [build_generation_prompt(sample["prompt"], args.prompt_format) for sample in batch_samples]
+        prompts = [generation_prompt(sample["prompt"]) for sample in batch_samples]
         inputs = encode_prompts(tokenizer, prompts, args.max_prompt_length)
         inputs = {key: value.to(device) for key, value in inputs.items()}
-        input_len = inputs["input_ids"].shape[-1]
+        prompt_len = inputs["input_ids"].shape[-1]
 
         with torch.inference_mode():
             outputs = model.generate(
@@ -113,7 +108,7 @@ def generate_responses(samples, model, tokenizer, args):
 
         decoded = []
         for output in outputs:
-            new_tokens = output[input_len:]
+            new_tokens = output[prompt_len:]
             decoded.append(clean_generation(tokenizer.decode(new_tokens, skip_special_tokens=True)))
 
         for batch_idx, sample in enumerate(batch_samples):
@@ -134,19 +129,63 @@ def generate_responses(samples, model, tokenizer, args):
     return rows
 
 
-def load_embedder(model_name):
-    from sentence_transformers import SentenceTransformer
+def build_logprob_records(rows):
+    records = []
+    for row_idx, row in enumerate(rows):
+        records.append({
+            "row_idx": row_idx,
+            "kind": "chosen",
+            "prompt": row["prompt"],
+            "response": row["chosen"],
+        })
+        records.append({
+            "row_idx": row_idx,
+            "kind": "rejected",
+            "prompt": row["prompt"],
+            "response": row["rejected"],
+        })
+        for response in row.get("responses", []):
+            records.append({
+                "row_idx": row_idx,
+                "kind": "generated",
+                "prompt": row["prompt"],
+                "response": response,
+            })
+    return records
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    return SentenceTransformer(model_name, device=device)
 
+def compute_logprobs(records, model, tokenizer):
+    if not records:
+        return []
 
-def cosine_matrix(a, b):
-    a = np.asarray(a, dtype=np.float32)
-    b = np.asarray(b, dtype=np.float32)
-    a = a / np.maximum(np.linalg.norm(a, axis=1, keepdims=True), 1e-12)
-    b = b / np.maximum(np.linalg.norm(b, axis=1, keepdims=True), 1e-12)
-    return a @ b.T
+    dataset = Dataset.from_list([
+        {
+            "prompt": record["prompt"],
+            "chosen": record["response"],
+            "rejected": record["response"],
+        }
+        for record in records
+    ])
+    trainer = build_dpo_trainer(model, tokenizer, dataset, dataset)
+    dataloader = trainer.get_eval_dataloader()
+
+    scored = []
+    offset = 0
+    for batch in tqdm(dataloader, desc="TRL target logprobs"):
+        with torch.no_grad():
+            out = trainer.concatenated_forward(model, batch)
+        chosen_logps = out["chosen_logps"].detach().cpu().numpy()
+        batch_size = len(chosen_logps)
+        for idx in range(batch_size):
+            scored.append({
+                **records[offset + idx],
+                "logp": float(chosen_logps[idx]),
+            })
+        offset += batch_size
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    return scored
 
 
 def finite_mean(values, default=0.0):
@@ -163,6 +202,41 @@ def finite_std(values, default=0.0):
     if finite.sum() <= 1:
         return float(default)
     return float(values[finite].std())
+
+
+def attach_logprobs(rows, scored_records):
+    generated_logps = [[] for _ in rows]
+
+    for record in scored_records:
+        row = rows[record["row_idx"]]
+        if record["kind"] == "chosen":
+            row["target_chosen_logp"] = record["logp"]
+        elif record["kind"] == "rejected":
+            row["target_rejected_logp"] = record["logp"]
+        else:
+            generated_logps[record["row_idx"]].append(record["logp"])
+
+    for row_idx, row in enumerate(rows):
+        row["generated_logps"] = generated_logps[row_idx]
+        row["target_margin"] = row["target_chosen_logp"] - row["target_rejected_logp"]
+        row["generated_mean_logp"] = finite_mean(generated_logps[row_idx])
+
+    return rows
+
+
+def load_embedder(model_name):
+    from sentence_transformers import SentenceTransformer
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    return SentenceTransformer(model_name, device=device)
+
+
+def cosine_matrix(a, b):
+    a = np.asarray(a, dtype=np.float32)
+    b = np.asarray(b, dtype=np.float32)
+    a = a / np.maximum(np.linalg.norm(a, axis=1, keepdims=True), 1e-12)
+    b = b / np.maximum(np.linalg.norm(b, axis=1, keepdims=True), 1e-12)
+    return a @ b.T
 
 
 def topk_mean(values, k):
@@ -216,7 +290,6 @@ def attach_similarity(rows, embedder, args):
         row["sim_rejected"] = sim_rejected.tolist()
         row["sim_gap"] = gap.tolist()
         row["chosen_rejected_sim"] = chosen_rejected_sim
-
         row["sim_mean_gap"] = finite_mean(gap)
         row["sim_median_gap"] = float(np.median(gap)) if len(gap) else 0.0
         row["sim_positive_rate"] = float(np.mean(gap > 0)) if len(gap) else 0.0
@@ -233,7 +306,7 @@ def attach_similarity(rows, embedder, args):
     return rows
 
 
-def load_or_generate_rows(args):
+def load_or_generate_rows(args, model, tokenizer):
     if args.input:
         with open(args.input, "rb") as handle:
             rows = pickle.load(handle)
@@ -243,16 +316,7 @@ def load_or_generate_rows(args):
 
     train_ds, eval_ds = load_mia_datasets(args)
     samples = dataset_to_samples(train_ds, label=1) + dataset_to_samples(eval_ds, label=0)
-
-    base_model = MODEL_DICT[args.model_name]
-    paths = model_paths(args.model_name, args.sft_data, args.dpo_data)
-    tokenizer = load_tokenizer(base_model, padding_side="left")
-    target_model = load_lora_model(base_model, paths["dpo"])
-    rows = generate_responses(samples, target_model, tokenizer, args)
-    del target_model
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    return rows
+    return generate_responses(samples, model, tokenizer, args)
 
 
 def score_array(rows, key):
@@ -293,7 +357,21 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
-    rows = load_or_generate_rows(args)
+    base_model = MODEL_DICT[args.model_name]
+    paths = model_paths(args.model_name, args.sft_data, args.dpo_data)
+    generation_tokenizer = load_tokenizer(base_model, padding_side="left")
+    logprob_tokenizer = load_tokenizer(base_model, padding_side="right")
+    target_model = load_lora_model(base_model, paths["dpo"])
+
+    rows = load_or_generate_rows(args, target_model, generation_tokenizer)
+    records = build_logprob_records(rows)
+    scored_records = compute_logprobs(
+        records,
+        target_model,
+        logprob_tokenizer,
+    )
+    rows = attach_logprobs(rows, scored_records)
+
     embedder = load_embedder(args.embed_model)
     rows = attach_similarity(rows, embedder, args)
 
@@ -307,13 +385,12 @@ def main():
     chosen_rejected_sims = score_array(rows, "chosen_rejected_sim")
     mean_sim_chosen = np.asarray([finite_mean(row.get("sim_chosen", [])) for row in rows], dtype=np.float64)
     mean_sim_rejected = np.asarray([finite_mean(row.get("sim_rejected", [])) for row in rows], dtype=np.float64)
+    target_margins = score_array(rows, "target_margin")
+    generated_mean_logps = score_array(rows, "generated_mean_logp")
 
     print(f"Loaded {len(rows)} rows")
     print(f"member: {int(labels.sum())} nonmember: {int((labels == 0).sum())}")
-    print(
-        f"num_responses={args.num_responses} topk={args.topk} "
-        f"sim_filter={args.sim_filter} prompt_format={args.prompt_format}"
-    )
+    print(f"num_responses={args.num_responses} topk={args.topk} sim_filter={args.sim_filter}")
     print(
         "valid responses: "
         f"mean={valid_counts.mean():.2f}, median={np.median(valid_counts):.2f}, "
@@ -324,6 +401,11 @@ def main():
         f"chosen_rejected={chosen_rejected_sims.mean():.4f}, "
         f"gen_chosen={mean_sim_chosen.mean():.4f}, "
         f"gen_rejected={mean_sim_rejected.mean():.4f}"
+    )
+    print(
+        "logprob diagnostics: "
+        f"target_margin={target_margins.mean():.4f}, "
+        f"generated_mean_logp={generated_mean_logps.mean():.4f}"
     )
     print("=== Generated Similarity Ranking MIA ===")
     for name, auc, tpr, n in results:
