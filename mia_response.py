@@ -101,6 +101,39 @@ def clean_generated_text(text):
     return str(text).replace("\x00", "").strip()
 
 
+def is_valid_generated_text(text, min_words=2):
+    text = clean_generated_text(text)
+    if not text:
+        return False
+    if len(text) < 3:
+        return False
+    if len(set(text)) <= 2 and len(text) >= 10:
+        return False
+    most_common_char_ratio = max(text.count(char) for char in set(text)) / len(text)
+    if most_common_char_ratio > 0.6 and len(text) >= 20:
+        return False
+    if not any(char.isalnum() for char in text):
+        return False
+    if len(text.split()) < min_words:
+        return False
+    return True
+
+
+def filter_generated_responses(responses, min_words=2):
+    filtered = []
+    seen = set()
+    for response in responses:
+        response = clean_generated_text(response)
+        key = " ".join(response.split())
+        if not is_valid_generated_text(response, min_words=min_words):
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        filtered.append(response)
+    return filtered
+
+
 def generate_k_responses(model, tokenizer, prompt, k, max_new_tokens=256):
     device = next(model.parameters()).device
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024)
@@ -124,7 +157,7 @@ def generate_k_responses(model, tokenizer, prompt, k, max_new_tokens=256):
         generated_ids = output[prompt_len:]
         response = clean_generated_text(tokenizer.decode(generated_ids, skip_special_tokens=True))
         responses.append(response)
-    return responses
+    return filter_generated_responses(responses)
 
 
 def compute_response_logps(model, tokenizer, prompt, responses):
