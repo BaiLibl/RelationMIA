@@ -208,8 +208,10 @@ def collect_logprobs_generated(args, tokenizer, trainer, model, ref_model=None, 
                 sample["logps"] = logps
                 rows.append(sample)
                 print("PROMPT:", prompt)
+                pp = 0
                 for res in responses:
-                    print("RESP:", res)
+                    print(f"RESP:{pp}", res)
+                    pp = pp + 1
             seen += batch_size
 
     process(trainer.get_train_dataloader(), label=1)
