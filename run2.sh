@@ -4,9 +4,9 @@ CUDA_VISIBLE_DEVICES=1 python mia_response.py \
   --model_name qwen-0.5b \
   --sft_data uf \
   --dpo_data uf \
-  --n_member 10 \
-  --n_nonmember 10 \
-  --num_return_sequences 4 \
+  --n_member 1000 \
+  --n_nonmember 1000 \
+  --num_return_sequences 2 \
   --output response/premia_uf_uf_qwen-0.5b.npy
 
 # python mia_generated_rank.py \

@@ -234,17 +234,21 @@ def collect_logprobs_generated(args, tokenizer, trainer, model, ref_model=None, 
                     max_new_tokens=max_new_tokens,
                 )
                 logps = compute_response_logps(model, tokenizer, prompt, responses)
+                r_logps = []
+                if ref_model is not None:
+                    r_logps = compute_response_logps(model, tokenizer, prompt, responses)
 
                 sample = {key: value[i] for key, value in row.items()}
                 sample["label"] = label
                 sample["response"] = responses
-                sample["logps"] = logps
+                sample["m_reponse"] = logps
+                sample["r_reponse"] = r_logps
                 rows.append(sample)
-                print("PROMPT:", prompt)
-                pp = 0
-                for res in responses:
-                    print(f"RESP:{pp}", res)
-                    pp = pp + 1
+                # print("PROMPT:", prompt)
+                # pp = 0
+                # for res in responses:
+                #     print(f"RESP:{pp}", res)
+                #     pp = pp + 1
             seen += batch_size
 
     process(trainer.get_train_dataloader(), label=1)
