@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from datasets import Dataset
 from peft import PeftModel
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -93,6 +94,123 @@ def collect_logprobs(trainer, model, ref_model=None, max_samples=2000):
 
     process(trainer.get_train_dataloader(), label=1)
     process(trainer.get_eval_dataloader(), label=0)
+    return rows
+
+
+def clean_generated_text(text):
+    return str(text).replace("\x00", "").strip()
+
+
+def generate_k_responses(model, tokenizer, prompt, k, max_new_tokens=256):
+    device = next(model.parameters()).device
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024)
+    inputs = {key: value.to(device) for key, value in inputs.items()}
+    prompt_len = inputs["input_ids"].shape[-1]
+
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            do_sample=True,
+            temperature=0.8,
+            top_p=0.95,
+            num_return_sequences=k,
+            max_new_tokens=max_new_tokens,
+            pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+
+    responses = []
+    for output in outputs:
+        generated_ids = output[prompt_len:]
+        response = clean_generated_text(tokenizer.decode(generated_ids, skip_special_tokens=True))
+        responses.append(response)
+    return responses
+
+
+def compute_response_logps(model, tokenizer, prompt, responses):
+    if not responses:
+        return []
+
+    dataset = Dataset.from_list([
+        {
+            "prompt": prompt,
+            "chosen": response,
+            "rejected": response,
+        }
+        for response in responses
+    ])
+    trainer = build_dpo_trainer(model, tokenizer, dataset, dataset)
+    dataloader = trainer.get_eval_dataloader()
+
+    logps = []
+    for batch in dataloader:
+        with torch.no_grad():
+            out = trainer.concatenated_forward(model, batch)
+        logps.extend(out["chosen_logps"].detach().cpu().numpy().tolist())
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    return [float(logp) for logp in logps]
+
+
+def compute_sample_logprobs(model, ref_model, tokenizer, sample):
+    dataset = Dataset.from_list([
+        {
+            "prompt": sample["prompt"],
+            "chosen": sample["chosen"],
+            "rejected": sample["rejected"],
+        }
+    ])
+    trainer = build_dpo_trainer(model, tokenizer, dataset, dataset)
+    batch = next(iter(trainer.get_eval_dataloader()))
+
+    with torch.no_grad():
+        out = trainer.concatenated_forward(model, batch)
+        row = {
+            "m_chosen": float(out["chosen_logps"].detach().cpu().numpy()[0]),
+            "m_rejected": float(out["rejected_logps"].detach().cpu().numpy()[0]),
+        }
+        if ref_model is not None:
+            ref = trainer.concatenated_forward(ref_model, batch)
+            row["r_chosen"] = float(ref["chosen_logps"].detach().cpu().numpy()[0])
+            row["r_rejected"] = float(ref["rejected_logps"].detach().cpu().numpy()[0])
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    return row
+
+
+def collect_logprobs_generated(model, tokenizer, train_ds, eval_ds, args, ref_model=None, max_samples=2000):
+    rows = []
+    k = args.num_return_sequences
+    max_new_tokens = args.max_new_tokens
+    print(f"Generating {k} responses per sample and collecting target logps...")
+
+    def process(dataset, label):
+        seen = 0
+        for sample in tqdm(dataset, desc=f"label={label}"):
+            if seen >= max_samples:
+                break
+
+            prompt = sample["prompt"]
+            row = compute_sample_logprobs(model, ref_model, tokenizer, sample)
+            responses = generate_k_responses(
+                model,
+                tokenizer,
+                prompt,
+                k=k,
+                max_new_tokens=max_new_tokens,
+            )
+            logps = compute_response_logps(model, tokenizer, prompt, responses)
+
+            row["label"] = label
+            row["response"] = responses
+            row["logps"] = logps
+            rows.append(row)
+            seen += 1
+
+    process(train_ds, label=1)
+    process(eval_ds, label=0)
     return rows
 
 
