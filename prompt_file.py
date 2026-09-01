@@ -1,9 +1,5 @@
-# OUTPUT_RULE = """Output exactly one token from this set: 1, 0, -1.
-# Do not explain. Do not write any other words."""
-OUTPUT_RULE = """The output must be exactly one of: 1, 0, -1.
-Invalid outputs: "Response 1", "Response 2", "Yes", "No", explanations, punctuation.
-Now output the answer.
-Answer:"""
+OUTPUT_RULE = """Output exactly one token from this set: 1, 0, -1.
+Do not explain. Do not write any other words."""
 
 
 def direct_satisfy(prompt, chosen, rejected):
