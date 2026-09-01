@@ -72,7 +72,7 @@ def decode_batch_text(tokenizer, batch, key, index):
     return tokenizer.decode(ids, skip_special_tokens=True)
 
 
-def generate_query_outputs(model, tokenizer, queries, num_return_sequences=10, max_new_tokens=8, batch_size=8, desc="query model"):
+def generate_query_outputs(model, tokenizer, queries, max_new_tokens=3, batch_size=8, desc="query model"):
     device = next(model.parameters()).device
     outputs_all = []
     old_padding_side = tokenizer.padding_side
@@ -96,7 +96,6 @@ def generate_query_outputs(model, tokenizer, queries, num_return_sequences=10, m
                 do_sample=True,
                 temperature=0.8,
                 top_p=0.95,
-                num_return_sequences=num_return_sequences,
                 max_new_tokens=max_new_tokens,
                 pad_token_id=tokenizer.pad_token_id,
                 eos_token_id=tokenizer.eos_token_id,
@@ -117,7 +116,7 @@ def generate_query_outputs(model, tokenizer, queries, num_return_sequences=10, m
 def collect_queries(args, tokenizer, trainer, target_model, ref_model, max_samples=2000):
     rows = []
     records = []
-    n_queries = 2
+    n_queries = 4
 
     def process(dataloader, label):
         seen = 0
@@ -150,31 +149,33 @@ def collect_queries(args, tokenizer, trainer, target_model, ref_model, max_sampl
     process(trainer.get_train_dataloader(), label=1)
     process(trainer.get_eval_dataloader(), label=0)
 
-    queries = [record["query"] for record in records]
+    expanded_queries = []
+    expanded_records = []
+    for record in records:
+        for _ in range(n_queries):
+            expanded_queries.append(record["query"])
+            expanded_records.append(record)
+
     m_decoded_outputs = generate_query_outputs(
         target_model,
         tokenizer,
-        queries,
-        num_return_sequences=n_queries,
-        max_new_tokens=8,
-        batch_size=4,
+        expanded_queries,
+        max_new_tokens=3,
+        batch_size=args.sem_generation_batch_size,
         desc="query target model",
     )
     r_decoded_outputs = generate_query_outputs(
         ref_model,
         tokenizer,
-        queries,
-        num_return_sequences=n_queries,
-        max_new_tokens=8,
-        batch_size=4,
+        expanded_queries,
+        max_new_tokens=3,
+        batch_size=args.sem_generation_batch_size,
         desc="query reference model",
     )
 
-    for record_idx, record in enumerate(records):
-        left = record_idx * n_queries
-        right = left + n_queries
-        rows[record["sample_id"]]["m_outputs"].extend(m_decoded_outputs[left:right])
-        rows[record["sample_id"]]["r_outputs"].extend(r_decoded_outputs[left:right])
+    for idx, record in enumerate(expanded_records):
+        rows[record["sample_id"]]["m_outputs"].append(m_decoded_outputs[idx])
+        rows[record["sample_id"]]["r_outputs"].append(r_decoded_outputs[idx])
 
     return rows
 
