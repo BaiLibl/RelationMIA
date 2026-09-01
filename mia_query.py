@@ -160,7 +160,7 @@ def collect_queries(args, tokenizer, trainer, target_model, ref_model, max_sampl
         target_model,
         tokenizer,
         expanded_queries,
-        max_new_tokens=10,
+        max_new_tokens=3,
         batch_size=args.sem_generation_batch_size,
         desc="query target model",
     )
@@ -168,7 +168,7 @@ def collect_queries(args, tokenizer, trainer, target_model, ref_model, max_sampl
         ref_model,
         tokenizer,
         expanded_queries,
-        max_new_tokens=10,
+        max_new_tokens=3,
         batch_size=args.sem_generation_batch_size,
         desc="query reference model",
     )
