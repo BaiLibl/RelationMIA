@@ -1,12 +1,22 @@
 
-CUDA_VISIBLE_DEVICES=2 python mia_response.py \
+CUDA_VISIBLE_DEVICES=1 python mia_sim.py \
   --model_name qwen-0.5b \
   --sft_data se \
   --dpo_data se \
   --n_member 1000 \
   --n_nonmember 1000 \
-  --num_return_sequences 2 \
-  --output response/premia_uf_uf_qwen-0.5b.npy
+  --num_return_sequences 4 \
+  --output response/sim_se_se_qwen-0.5b_k8.npy
+
+
+# CUDA_VISIBLE_DEVICES=2 python mia_response.py \
+#   --model_name qwen-0.5b \
+#   --sft_data se \
+#   --dpo_data se \
+#   --n_member 1000 \
+#   --n_nonmember 1000 \
+#   --num_return_sequences 2 \
+#   --output response/premia_uf_uf_qwen-0.5b.npy
 
 
 # python mia_generated_sim.py \

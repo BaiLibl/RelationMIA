@@ -1,13 +1,23 @@
 # 2026-06-20
 
-CUDA_VISIBLE_DEVICES=1 python mia_response.py \
+
+CUDA_VISIBLE_DEVICES=1 python mia_sim.py \
   --model_name qwen-0.5b \
   --sft_data uf \
   --dpo_data uf \
   --n_member 1000 \
   --n_nonmember 1000 \
-  --num_return_sequences 2 \
-  --output response/premia_uf_uf_qwen-0.5b.npy
+  --num_return_sequences 4 \
+  --output response/sim_uf_uf_qwen-0.5b_k8.npy
+
+# CUDA_VISIBLE_DEVICES=1 python mia_response.py \
+#   --model_name qwen-0.5b \
+#   --sft_data uf \
+#   --dpo_data uf \
+#   --n_member 1000 \
+#   --n_nonmember 1000 \
+#   --num_return_sequences 2 \
+#   --output response/premia_uf_uf_qwen-0.5b.npy
 
 # python mia_generated_rank.py \
 #   --model_name qwen-0.5b \
