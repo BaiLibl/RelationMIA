@@ -46,6 +46,7 @@ def parse_args():
     parser.add_argument("--sem_K", type=int, default=16)
     parser.add_argument("--paraphrase_model", type=str, default="Qwen/Qwen2.5-3B-Instruct")
     parser.add_argument("--embed_model", type=str, default="sentence-transformers/all-mpnet-base-v2")
+    parser.add_argument("--embed_batch_size", type=int, default=64)
     parser.add_argument("--max_new_tokens", type=int, default=256)
     parser.add_argument("--sem_generation_batch_size", type=int, default=8)
     parser.add_argument("--disable_generation", action="store_true")
