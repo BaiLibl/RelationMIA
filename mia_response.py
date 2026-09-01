@@ -160,6 +160,39 @@ def generate_k_responses(model, tokenizer, prompt, k, max_new_tokens=256):
     return filter_generated_responses(responses)
 
 
+def generate_batch_k_responses(model, tokenizer, prompts, k, max_new_tokens=256):
+    device = next(model.parameters()).device
+    old_padding_side = tokenizer.padding_side
+    tokenizer.padding_side = "left"
+    inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, max_length=1024)
+    tokenizer.padding_side = old_padding_side
+    inputs = {key: value.to(device) for key, value in inputs.items()}
+    prompt_len = inputs["input_ids"].shape[-1]
+
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            do_sample=True,
+            temperature=0.8,
+            top_p=0.95,
+            num_return_sequences=k,
+            max_new_tokens=max_new_tokens,
+            pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+
+    responses_by_prompt = []
+    for prompt_idx in range(len(prompts)):
+        responses = []
+        for response_idx in range(k):
+            output_idx = prompt_idx * k + response_idx
+            generated_ids = outputs[output_idx][prompt_len:]
+            response = clean_generated_text(tokenizer.decode(generated_ids, skip_special_tokens=True))
+            responses.append(response)
+        responses_by_prompt.append(filter_generated_responses(responses))
+    return responses_by_prompt
+
+
 def compute_response_logps(model, tokenizer, prompt, responses):
     if not responses:
         return []
@@ -184,6 +217,47 @@ def compute_response_logps(model, tokenizer, prompt, responses):
             torch.cuda.empty_cache()
 
     return [float(logp) for logp in logps]
+
+
+def compute_batch_response_logps(model, tokenizer, prompts, responses_by_prompt):
+    records = []
+    for row_idx, (prompt, responses) in enumerate(zip(prompts, responses_by_prompt)):
+        for response in responses:
+            records.append({
+                "row_idx": row_idx,
+                "prompt": prompt,
+                "chosen": response,
+                "rejected": response,
+            })
+
+    logps_by_prompt = [[] for _ in prompts]
+    if not records:
+        return logps_by_prompt
+
+    dataset = Dataset.from_list([
+        {
+            "prompt": record["prompt"],
+            "chosen": record["chosen"],
+            "rejected": record["rejected"],
+        }
+        for record in records
+    ])
+    score_trainer = build_dpo_trainer(model, tokenizer, dataset, dataset)
+    dataloader = score_trainer.get_eval_dataloader()
+
+    offset = 0
+    for batch in dataloader:
+        with torch.no_grad():
+            out = score_trainer.concatenated_forward(model, batch)
+        logps = out["chosen_logps"].detach().cpu().numpy().tolist()
+        for idx, logp in enumerate(logps):
+            row_idx = records[offset + idx]["row_idx"]
+            logps_by_prompt[row_idx].append(float(logp))
+        offset += len(logps)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    return logps_by_prompt
 
 
 def decode_batch_text(tokenizer, batch, key, index):
@@ -222,33 +296,40 @@ def collect_logprobs_generated(args, tokenizer, trainer, model, ref_model=None, 
 
             batch_size = len(row["m_chosen"])
             keep = min(batch_size, max_samples - seen)
+            prompts = [
+                decode_batch_text(tokenizer, batch, "prompt_input_ids", i)
+                for i in range(keep)
+            ]
+            responses_by_prompt = generate_batch_k_responses(
+                model,
+                tokenizer,
+                prompts,
+                k=k,
+                max_new_tokens=max_new_tokens,
+            )
+            m_response_logps = compute_batch_response_logps(
+                model,
+                tokenizer,
+                prompts,
+                responses_by_prompt,
+            )
+            r_response_logps = [[] for _ in prompts]
+            if ref_model is not None:
+                r_response_logps = compute_batch_response_logps(
+                    ref_model,
+                    tokenizer,
+                    prompts,
+                    responses_by_prompt,
+                )
+
             for i in range(keep):
                 prompt = decode_batch_text(tokenizer, batch, "prompt_input_ids", i)
-                # chosen = decode_batch_text(tokenizer, batch, "chosen_input_ids", i)
-                # rejected = decode_batch_text(tokenizer, batch, "rejected_input_ids", i)
-                responses = generate_k_responses(
-                    model,
-                    tokenizer,
-                    prompt,
-                    k=k,
-                    max_new_tokens=max_new_tokens,
-                )
-                logps = compute_response_logps(model, tokenizer, prompt, responses)
-                r_logps = []
-                if ref_model is not None:
-                    r_logps = compute_response_logps(model, tokenizer, prompt, responses)
-
                 sample = {key: value[i] for key, value in row.items()}
                 sample["label"] = label
-                sample["response"] = responses
-                sample["m_reponse"] = logps
-                sample["r_reponse"] = r_logps
+                sample["response"] = responses_by_prompt[i]
+                sample["m_response"] = m_response_logps[i]
+                sample["r_response"] = r_response_logps[i]
                 rows.append(sample)
-                # print("PROMPT:", prompt)
-                # pp = 0
-                # for res in responses:
-                #     print(f"RESP:{pp}", res)
-                #     pp = pp + 1
             seen += batch_size
 
     process(trainer.get_train_dataloader(), label=1)
