@@ -72,9 +72,27 @@ def decode_batch_text(tokenizer, batch, key, index):
     return tokenizer.decode(ids, skip_special_tokens=True)
 
 
-def generate_query_outputs(model, tokenizer, queries, max_new_tokens=3, batch_size=8, desc="query model"):
+def label_token_ids(tokenizer, label):
+    token_ids = set()
+    for text in (label, f" {label}"):
+        ids = tokenizer.encode(text, add_special_tokens=False)
+        if len(ids) == 1:
+            token_ids.add(ids[0])
+    if not token_ids:
+        ids = tokenizer.encode(label, add_special_tokens=False)
+        if ids:
+            token_ids.add(ids[-1])
+    return sorted(token_ids)
+
+
+def abc_token_id_groups(tokenizer):
+    return [label_token_ids(tokenizer, label) for label in ("A", "B", "C")]
+
+
+def compute_abc_logps(model, tokenizer, queries, batch_size=8, desc="score ABC logprobs"):
     device = next(model.parameters()).device
-    outputs_all = []
+    logps_all = []
+    token_id_groups = abc_token_id_groups(tokenizer)
     old_padding_side = tokenizer.padding_side
     tokenizer.padding_side = "left"
 
@@ -88,35 +106,33 @@ def generate_query_outputs(model, tokenizer, queries, max_new_tokens=3, batch_si
             max_length=2048,
         )
         inputs = {key: value.to(device) for key, value in inputs.items()}
-        prompt_len = inputs["input_ids"].shape[-1]
 
         with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                do_sample=True,
-                temperature=0.8,
-                top_p=0.95,
-                max_new_tokens=max_new_tokens,
-                pad_token_id=tokenizer.pad_token_id,
-                eos_token_id=tokenizer.eos_token_id,
-            )
+            out = model(**inputs)
+            next_logits = out.logits[:, -1, :]
+            log_probs = torch.log_softmax(next_logits, dim=-1)
 
-        for output in outputs:
-            generated_ids = output[prompt_len:]
-            text = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
-            outputs_all.append(text)
+        for row_log_probs in log_probs:
+            label_logps = []
+            for token_ids in token_id_groups:
+                if token_ids:
+                    label_logp = torch.logsumexp(row_log_probs[token_ids], dim=0).item()
+                else:
+                    label_logp = float("-inf")
+                label_logps.append(float(label_logp))
+            logps_all.append(label_logps)
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
     tokenizer.padding_side = old_padding_side
-    return outputs_all
+    return logps_all
 
 
 def collect_queries(args, tokenizer, trainer, target_model, ref_model, max_samples=2000):
     rows = []
     records = []
-    n_queries = 10
+    n_queries = 1
 
     def process(dataloader, label):
         seen = 0
@@ -133,8 +149,8 @@ def collect_queries(args, tokenizer, trainer, target_model, ref_model, max_sampl
                 rejected = decode_batch_text(tokenizer, batch, "rejected_input_ids", i)
                 rows.append({
                     "label": label,
-                    "m_outputs": [],
-                    "r_outputs": [],
+                    "m_logps": [],
+                    "r_logps": [],
                 })
 
                 query_prompts = build_prompt_queries(prompt, chosen, rejected)
@@ -156,26 +172,24 @@ def collect_queries(args, tokenizer, trainer, target_model, ref_model, max_sampl
             expanded_queries.append(record["query"])
             expanded_records.append(record)
 
-    m_decoded_outputs = generate_query_outputs(
+    m_logps = compute_abc_logps(
         target_model,
         tokenizer,
         expanded_queries,
-        max_new_tokens=3,
         batch_size=args.sem_generation_batch_size,
-        desc="query target model",
+        desc="score target ABC logprobs",
     )
-    r_decoded_outputs = generate_query_outputs(
+    r_logps = compute_abc_logps(
         ref_model,
         tokenizer,
         expanded_queries,
-        max_new_tokens=3,
         batch_size=args.sem_generation_batch_size,
-        desc="query reference model",
+        desc="score reference ABC logprobs",
     )
 
     for idx, record in enumerate(expanded_records):
-        rows[record["sample_id"]]["m_outputs"].append(m_decoded_outputs[idx])
-        rows[record["sample_id"]]["r_outputs"].append(r_decoded_outputs[idx])
+        rows[record["sample_id"]]["m_logps"].append(m_logps[idx])
+        rows[record["sample_id"]]["r_logps"].append(r_logps[idx])
 
     return rows
 
