@@ -116,7 +116,7 @@ def generate_query_outputs(model, tokenizer, queries, max_new_tokens=3, batch_si
 def collect_queries(args, tokenizer, trainer, target_model, ref_model, max_samples=2000):
     rows = []
     records = []
-    n_queries = 4
+    n_queries = 10
 
     def process(dataloader, label):
         seen = 0

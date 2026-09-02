@@ -41,7 +41,7 @@ def parse_answer_number(text):
     return None
 
 
-def map_response_position(prompt_idx, position):
+def map_response_position(prompt_type, position):
     # prompt_file.py order:
     # 0 direct_satisfy:       Response 1 = chosen,   Response 2 = rejected
     # 1 direct_annotator:     Response 1 = chosen,   Response 2 = rejected
@@ -50,7 +50,6 @@ def map_response_position(prompt_idx, position):
     # 4 direct_satisfy_swap:  Response 1 = rejected, Response 2 = chosen
     # 5 weakness:             1 if Response 2 has weaknesses, -1 if Response 1 has weaknesses
     # 6 weakness_swap:        1 if Response 1 has weaknesses, -1 if Response 2 has weaknesses
-    prompt_type = prompt_idx % 7
     if prompt_type in {0, 1, 2, 3}:
         return 1 if position == 1 else -1
     if prompt_type == 4:
@@ -62,7 +61,7 @@ def map_response_position(prompt_idx, position):
     return 0
 
 
-def parse_output(text, prompt_idx):
+def parse_output(text, prompt_type):
     text = str(text).strip()
     match = VALID_NUMBER_RE.match(text)
     if match:
@@ -74,7 +73,7 @@ def parse_output(text, prompt_idx):
 
     position = parse_response_position(text)
     if position is not None:
-        return map_response_position(prompt_idx, position)
+        return map_response_position(prompt_type, position)
 
     lowered = text.lower()
     for keyword, value in TASK_SPECIFIC_MAP.items():
@@ -85,8 +84,10 @@ def parse_output(text, prompt_idx):
 
 
 def postprocess_outputs(outputs):
+    n_prompt_types = 7
+    n_queries = max(len(outputs) // n_prompt_types, 1)
     return [
-        parse_output(output, idx)
+        parse_output(output, (idx // n_queries) % n_prompt_types)
         for idx, output in enumerate(outputs)
     ]
 
