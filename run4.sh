@@ -11,11 +11,17 @@
 #   --input query/query_uf_uf_qwen-0.5b.npy \
 #   --output query/query_uf_uf_qwen-0.5b_post.npy
 
-  CUDA_VISIBLE_DEVICES=1 python mia_query.py \
-  --model_name qwen-0.5b \
-  --sft_data uf \
-  --dpo_data uf \
-  --n_member 1000 \
-  --n_nonmember 1000 \
-  --sem_generation_batch_size 8 \
-  --output query/query_abc_logps_uf_uf_qwen-0.5b.npy
+  # CUDA_VISIBLE_DEVICES=1 python mia_query.py \
+  # --model_name qwen-0.5b \
+  # --sft_data uf \
+  # --dpo_data uf \
+  # --n_member 1000 \
+  # --n_nonmember 1000 \
+  # --sem_generation_batch_size 8 \
+  # --output query/query_abc_logps_uf_uf_qwen-0.5b.npy
+
+  python3 mia_abc.py \
+  --input query/query_abc_logps_se_se_qwen-0.5b.npy
+
+  python3 mia_abc.py \
+  --input query/query_abc_logps_uf_uf_qwen-0.5b.npy
