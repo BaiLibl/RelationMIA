@@ -10,7 +10,6 @@ __pycache__/
 save*/
 *.log
 test*
-*.csv
 *.txt
 backup*/
 *.ipynb
