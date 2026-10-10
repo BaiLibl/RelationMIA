@@ -1,14 +1,30 @@
-# 2026-06-20
 
 
-CUDA_VISIBLE_DEVICES=1 python mia_sim.py \
+#2026-10-10
+mkdir -p outputs
+
+CUDA_VISIBLE_DEVICES=1 python output_store.py \
   --model_name qwen-0.5b \
   --sft_data uf \
   --dpo_data uf \
-  --n_member 1000 \
-  --n_nonmember 1000 \
-  --num_return_sequences 4 \
-  --output response/sim_uf_uf_qwen-0.5b_k8.npy
+  --n_member 100 \
+  --n_nonmember 100 \
+  --output outputs/premia_uf_uf_qwen-0.5b.npy
+
+# 读取保存结果，计算 AUROC 和 TPR@FPR=0.05
+python output_mia.py \
+  --input outputs/premia_uf_uf_qwen-0.5b.npy \
+  --popu 1
+
+# 2026-09-14
+# CUDA_VISIBLE_DEVICES=1 python mia_sim.py \
+#   --model_name qwen-0.5b \
+#   --sft_data uf \
+#   --dpo_data uf \
+#   --n_member 1000 \
+#   --n_nonmember 1000 \
+#   --num_return_sequences 4 \
+#   --output response/sim_uf_uf_qwen-0.5b_k8.npy
 
 # CUDA_VISIBLE_DEVICES=1 python mia_response.py \
 #   --model_name qwen-0.5b \
