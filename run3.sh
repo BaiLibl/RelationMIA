@@ -1,4 +1,5 @@
 
+# bash run3.sh > log3.txt 2>&1
 
 #2026-10-10
 CUDA_VISIBLE_DEVICES=1 python factor_store.py \
@@ -11,7 +12,7 @@ CUDA_VISIBLE_DEVICES=1 python factor_store.py \
   --embed_batch_size 64 \
   --output outputs/factor_uf_uf_qwen-0.5b.npy
 
-  
+
 
 # 2026-9-14
 # CUDA_VISIBLE_DEVICES=1 python mia_sim.py \
