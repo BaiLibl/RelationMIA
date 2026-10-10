@@ -1,34 +1,48 @@
-
+# bash run2.sh > log.txt 2>&1
 
 #2026-10-10
 # baseline
 mkdir -p outputs
-
-CUDA_VISIBLE_DEVICES=1 python output_store.py \
+CUDA_VISIBLE_DEVICES=1 python resp_store.py \
   --model_name qwen-0.5b \
   --sft_data uf \
   --dpo_data uf \
-  --n_member 1000 \
-  --n_nonmember 1000 \
-  --output outputs/premia_uf_uf_qwen-0.5b.npy
-
-# 读取保存结果，计算 AUROC 和 TPR@FPR=0.05
-python output_mia.py \
-  --input outputs/premia_uf_uf_qwen-0.5b.npy \
-  --popu 1
-
-
-CUDA_VISIBLE_DEVICES=1 python output_store.py \
-  --model_name qwen-0.5b \
-  --sft_data se \
-  --dpo_data se \
-  --n_member 1000 \
-  --n_nonmember 1000 \
-  --output outputs/premia_se_se_qwen-0.5b.npy
+  --n_member 10 \
+  --n_nonmember 10 \
+  --num_return_sequences 2 \
+  --max_new_tokens 256 \
+  --sem_generation_batch_size 8 \
+  --output outputs/resp_uf_uf_qwen-0.5b_k8.npy
 
 python output_mia.py \
-  --input outputs/premia_se_se_qwen-0.5b.npy \
+  --input outputs/resp_uf_uf_qwen-0.5b_k8.npy \
   --popu 1
+
+# CUDA_VISIBLE_DEVICES=1 python output_store.py \
+#   --model_name qwen-0.5b \
+#   --sft_data uf \
+#   --dpo_data uf \
+#   --n_member 1000 \
+#   --n_nonmember 1000 \
+#   --output outputs/premia_uf_uf_qwen-0.5b.npy
+
+# # 读取保存结果，计算 AUROC 和 TPR@FPR=0.05
+# python output_mia.py \
+#   --input outputs/premia_uf_uf_qwen-0.5b.npy \
+#   --popu 1
+
+
+# CUDA_VISIBLE_DEVICES=1 python output_store.py \
+#   --model_name qwen-0.5b \
+#   --sft_data se \
+#   --dpo_data se \
+#   --n_member 1000 \
+#   --n_nonmember 1000 \
+#   --output outputs/premia_se_se_qwen-0.5b.npy
+
+# python output_mia.py \
+#   --input outputs/premia_se_se_qwen-0.5b.npy \
+#   --popu 1
 
 # 2026-09-14
 # CUDA_VISIBLE_DEVICES=1 python mia_sim.py \
