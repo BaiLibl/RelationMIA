@@ -7,15 +7,15 @@ CUDA_VISIBLE_DEVICES=1 python resp_store.py \
   --model_name qwen-0.5b \
   --sft_data uf \
   --dpo_data uf \
-  --n_member 10 \
-  --n_nonmember 10 \
+  --n_member 1000 \
+  --n_nonmember 1000 \
   --num_return_sequences 2 \
   --max_new_tokens 256 \
   --sem_generation_batch_size 8 \
-  --output outputs/resp_uf_uf_qwen-0.5b_k8.npy
+  --output outputs/resp_uf_uf_qwen-0.5b_k2.npy
 
 python output_mia.py \
-  --input outputs/resp_uf_uf_qwen-0.5b_k8.npy \
+  --input outputs/resp_uf_uf_qwen-0.5b_k2.npy \
   --popu 1
 
 # CUDA_VISIBLE_DEVICES=1 python output_store.py \
