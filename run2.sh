@@ -1,19 +1,33 @@
 
 
 #2026-10-10
+# baseline
 mkdir -p outputs
 
 CUDA_VISIBLE_DEVICES=1 python output_store.py \
   --model_name qwen-0.5b \
   --sft_data uf \
   --dpo_data uf \
-  --n_member 100 \
-  --n_nonmember 100 \
+  --n_member 1000 \
+  --n_nonmember 1000 \
   --output outputs/premia_uf_uf_qwen-0.5b.npy
 
 # 读取保存结果，计算 AUROC 和 TPR@FPR=0.05
 python output_mia.py \
   --input outputs/premia_uf_uf_qwen-0.5b.npy \
+  --popu 1
+
+
+CUDA_VISIBLE_DEVICES=1 python output_store.py \
+  --model_name qwen-0.5b \
+  --sft_data se \
+  --dpo_data se \
+  --n_member 1000 \
+  --n_nonmember 1000 \
+  --output outputs/premia_se_se_qwen-0.5b.npy
+
+python output_mia.py \
+  --input outputs/premia_se_se_qwen-0.5b.npy \
   --popu 1
 
 # 2026-09-14
