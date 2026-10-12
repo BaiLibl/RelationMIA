@@ -1,7 +1,7 @@
 # bash run2.sh > log.txt 2>&1
 
 #2026-10-12
-CUDA_VISIBLE_DEVICES=1 python pert_store.py \
+CUDA_VISIBLE_DEVICES=0 python pert_store.py \
   --model_name qwen-0.5b \
   --sft_data uf \
   --dpo_data uf \
@@ -12,6 +12,16 @@ CUDA_VISIBLE_DEVICES=1 python pert_store.py \
   --sem_generation_batch_size 8 \
   --output outputs/pert_uf_uf_qwen-0.5b.npy
 
+CUDA_VISIBLE_DEVICES=0 python pert_store.py \
+  --model_name qwen-0.5b \
+  --sft_data se \
+  --dpo_data se \
+  --n_member 1000 \
+  --n_nonmember 1000 \
+  --pert_rates 0 5 10 20 \
+  --pert_seed 42 \
+  --sem_generation_batch_size 8 \
+  --output outputs/pert_se_se_qwen-0.5b.npy
 
 #2026-10-10
 # baseline
