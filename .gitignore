@@ -13,7 +13,6 @@ test*
 *.txt
 backup*/
 *.ipynb
-*.png
 *.npy
 reference/
 *.pdf

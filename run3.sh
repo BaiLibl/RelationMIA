@@ -23,6 +23,8 @@ CUDA_VISIBLE_DEVICES=1 python factor_store.py \
   --output outputs/factor_se_se_qwen-0.5b.npy
 
 # python npy_to_csv.py --input outputs/factor_uf_uf_qwen-0.5b.npy --output factor_uf_uf_qwen-0.5b.csv
+# python npy_to_csv.py --input outputs/factor_se_se_qwen-0.5b.npy --output factor_se_se_qwen-0.5b.csv
+
 # 2026-9-14
 # CUDA_VISIBLE_DEVICES=1 python mia_sim.py \
 #   --model_name qwen-0.5b \
