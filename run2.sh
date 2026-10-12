@@ -1,22 +1,35 @@
 # bash run2.sh > log.txt 2>&1
 
-#2026-10-10
-# baseline
-mkdir -p outputs
-CUDA_VISIBLE_DEVICES=1 python resp_store.py \
+#2026-10-12
+CUDA_VISIBLE_DEVICES=1 python pert_store.py \
   --model_name qwen-0.5b \
   --sft_data uf \
   --dpo_data uf \
   --n_member 1000 \
   --n_nonmember 1000 \
-  --num_return_sequences 2 \
-  --max_new_tokens 256 \
+  --pert_rates 0 5 10 20 \
+  --pert_seed 42 \
   --sem_generation_batch_size 8 \
-  --output outputs/resp_uf_uf_qwen-0.5b_k2.npy
+  --output outputs/pert_uf_uf_qwen-0.5b.npy
 
-python output_mia.py \
-  --input outputs/resp_uf_uf_qwen-0.5b_k2.npy \
-  --popu 1
+
+#2026-10-10
+# baseline
+# mkdir -p outputs
+# CUDA_VISIBLE_DEVICES=1 python resp_store.py \
+#   --model_name qwen-0.5b \
+#   --sft_data uf \
+#   --dpo_data uf \
+#   --n_member 1000 \
+#   --n_nonmember 1000 \
+#   --num_return_sequences 2 \
+#   --max_new_tokens 256 \
+#   --sem_generation_batch_size 8 \
+#   --output outputs/resp_uf_uf_qwen-0.5b_k2.npy
+
+# python output_mia.py \
+#   --input outputs/resp_uf_uf_qwen-0.5b_k2.npy \
+#   --popu 1
 
 # CUDA_VISIBLE_DEVICES=1 python output_store.py \
 #   --model_name qwen-0.5b \
