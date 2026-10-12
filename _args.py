@@ -52,5 +52,9 @@ def parse_args():
     parser.add_argument("--disable_generation", action="store_true")
     parser.add_argument("--no_length_normalize", action="store_true")
     parser.add_argument("--save_query_logprobs", action="store_true")
+    parser.add_argument("--pert_rates", type=float, nargs="+", default=[5, 10, 20],
+                        help="Synonym replacement percentages, e.g. 5 10 20")
+    parser.add_argument("--pert_nlp_model", default="en_core_web_sm")
+    parser.add_argument("--pert_seed", type=int, default=42)
 
     return parser.parse_args()
