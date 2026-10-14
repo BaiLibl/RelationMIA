@@ -7,10 +7,10 @@ CUDA_VISIBLE_DEVICES=0 python pert_store.py \
   --dpo_data uf \
   --n_member 1000 \
   --n_nonmember 1000 \
-  --pert_rates 0 5 10 20 \
+  --pert_rates 0 5 10 20 50 70 100 \
   --pert_seed 42 \
   --sem_generation_batch_size 8 \
-  --output outputs/pert_uf_uf_qwen-0.5b.npy
+  --output outputs/pert_uf_uf_qwen-0.5b2.npy
 
 CUDA_VISIBLE_DEVICES=0 python pert_store.py \
   --model_name qwen-0.5b \
@@ -18,10 +18,10 @@ CUDA_VISIBLE_DEVICES=0 python pert_store.py \
   --dpo_data se \
   --n_member 1000 \
   --n_nonmember 1000 \
-  --pert_rates 0 5 10 20 \
+  --pert_rates 0 5 10 20 50 70 100 \
   --pert_seed 42 \
   --sem_generation_batch_size 8 \
-  --output outputs/pert_se_se_qwen-0.5b.npy
+  --output outputs/pert_se_se_qwen-0.5b2.npy
 
 #2026-10-10
 # baseline
