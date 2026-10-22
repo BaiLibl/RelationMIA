@@ -156,7 +156,7 @@ def build_dpo_pairs(utterances):
 # 构造 DPO 数据
 dpo_df = build_dpo_pairs(utterances)
 
-print("DPO pairs:", len(dpo_df))
+print("DPO pairs:123", len(dpo_df))
 print("Users:", dpo_df["user_id"].nunique())
 print(dpo_df.head())
 
