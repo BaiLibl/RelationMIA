@@ -1,8 +1,11 @@
 from datasets import load_dataset
 from pathlib import Path
 import pandas as pd
+import numpy as np
 
-DATA_DIR = Path("./data/PRISM")
+DATA_PATH="../data/PRISM"
+
+DATA_DIR = Path(DATA_PATH)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 REPO = "HannahRoseKirk/prism-alignment"
@@ -131,6 +134,11 @@ def build_dpo_pairs(utterances):
                 "rejected": rejected_row["model_response"],
                 "chosen_score": chosen_row["score"],
                 "rejected_score": rejected_row["score"],
+                "age": chosen_row["age"],
+                "gender": chosen_row["gender"],
+                "employment_status": chosen_row["employment_status"],
+                "education": chosen_row["education"],
+                "marital_status": chosen_row["marital_status"],
             })
 
     dpo_df = pd.DataFrame(
@@ -155,15 +163,31 @@ def build_dpo_pairs(utterances):
 
 # 构造 DPO 数据
 dpo_df = build_dpo_pairs(utterances)
-
-print("DPO pairs:123", len(dpo_df))
-print("Users:", dpo_df["user_id"].nunique())
-print(dpo_df.head())
-
-# 保存
 dpo_df.to_json(
-    "./data/PRISM/dpo_pairs.jsonl",
+    f"{DATA_PATH}/dpo_pairs.jsonl",
     orient="records",
     lines=True,
     force_ascii=False,
 )
+
+df = pd.read_json(f"{DATA_PATH}/dpo_pairs.jsonl", lines=True)
+
+# 按用户划分
+users = df["user_id"].dropna().unique()
+rng = np.random.default_rng(42)
+rng.shuffle(users)
+
+train_users = users[:1000]
+test_users = users[1000:]
+
+train_df = df[df["user_id"].isin(train_users)]
+test_df = df[df["user_id"].isin(test_users)]
+
+# 保存
+train_df.to_json(f"{DATA_PATH}/train.jsonl", orient="records", lines=True, force_ascii=False)
+test_df.to_json(f"{DATA_PATH}/test.jsonl", orient="records", lines=True, force_ascii=False)
+
+# 统计
+print(f"Train: {train_df['user_id'].nunique()} users, {len(train_df)} pairs")
+print(f"Test:  {test_df['user_id'].nunique()} users, {len(test_df)} pairs")
+print(f"User overlap: {len(set(train_users) & set(test_users))}")
