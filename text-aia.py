@@ -129,7 +129,8 @@ if __name__ == "__main__":
 
     for att in ATTRIBUTES:
         res = run_attribute("age")
-        pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=False)
+        if not os.path.exists("results.csv"):
+            pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=True)
 
         res = run_attribute("age", 2)
         pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=False)
