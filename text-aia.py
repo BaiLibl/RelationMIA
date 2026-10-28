@@ -18,6 +18,7 @@ from sklearn.preprocessing import LabelEncoder
 # TEXTS = ["prompt", "chosen", "rejected"]
 
 def build_user_features(path,  k=None):
+    print("build feature .....")
     df = pd.read_json(path, lines=True)
     encoder = SentenceTransformer("BAAI/bge-m3", device="cuda" if torch.cuda.is_available() else "cpu")
     encoder.max_seq_length = 512
@@ -25,6 +26,7 @@ def build_user_features(path,  k=None):
     texts = df["prompt"].tolist() + df["chosen"].tolist() + df["rejected"].tolist()
     emb = encoder.encode(texts, batch_size=64,
                          normalize_embeddings=True, convert_to_numpy=True)
+    print("feature done")
     n = len(df)
     p, c, r = emb[:n], emb[n:2*n], emb[2*n:]
     row_feat = np.concatenate([p, c, r, c - r], axis=1)  # (n_rows, 4*dim)
@@ -64,6 +66,8 @@ def run_attribute(label_name="age", k=None):
     train_X = np.stack(train_df["feature"].to_numpy()).astype(np.float32)
     test_X = np.stack(test_df["feature"].to_numpy()).astype(np.float32)
 
+    print(train_X.shape, test_X.shape)
+
     # 标准化（对 LogisticRegression 很重要，尤其 feature 各块尺度不同）
     scaler = StandardScaler()
     train_X = scaler.fit_transform(train_X)
@@ -71,7 +75,7 @@ def run_attribute(label_name="age", k=None):
 
     # LogisticRegression 多分类
     clf = LogisticRegression(
-        max_iter=2000,
+        max_iter=1000,
         C=1.0,
         multi_class="multinomial",  # 多分类用 softmax
     )
