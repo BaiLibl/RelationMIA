@@ -55,7 +55,7 @@ def build_user_features(path,  k=None):
 def run_attribute(label_name="age", k=None):
 
     return {
-        "label": "123",
+        "label": label_name,
         "classes":3,
         "k":k,
         "f1_macro": 0,
@@ -123,20 +123,18 @@ def run_attribute(label_name="age", k=None):
 
 
 if __name__ == "__main__":
-
     ATTRIBUTES = ["age", "gender", "employment_status", "education", "marital_status"]
+    CSV_PATH = "results.csv"
+
+    def append_res(row, csv_path=CSV_PATH):
+        df = pd.DataFrame([row])                       # ← 关键：列表包一层
+        header = not os.path.exists(csv_path)
+        df.to_csv(csv_path, mode="a", header=header, index=False, encoding="utf-8")
 
 
-    for att in ATTRIBUTES:
-        res = run_attribute("age")
-        if not os.path.exists("results.csv"):
-            pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=True)
-
-        res = run_attribute("age", 2)
-        pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=False)
-
-        res = run_attribute("age", 4)
-        pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=False)
-
-        res = run_attribute("age", 4)
-        pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=False)
+    if __name__ == "__main__":
+        for att in ATTRIBUTES:
+            for k in [None, 2, 4, 8]:
+                res = run_attribute(att) if k is None else run_attribute(att, k)
+                append_res(res)
+                print(res["label"], res["k"], res["f1_macro"], res["auc"])
