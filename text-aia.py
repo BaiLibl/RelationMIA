@@ -4,7 +4,7 @@ pip install numpy pandas scikit-learn sentence-transformers joblib
 python text-aia.py --train_input ../data/PRISM/train.jsonl --test_input ../data/PRISM/test.jsonl
 """
 
-import argparse
+import os
 import pandas as pd
 import torch
 import numpy as np
@@ -53,6 +53,17 @@ def build_user_features(path,  k=None):
 
 
 def run_attribute(label_name="age", k=None):
+
+    return {
+        "label": "123",
+        "classes":3,
+        "k":k,
+        "f1_macro": 0,
+        "auc": 0,
+        # "model": clf
+    }
+
+    
     train_df = build_user_features("../data/PRISM/train.jsonl", k)
     test_df = build_user_features("../data/PRISM/test.jsonl",k )
 
@@ -103,28 +114,28 @@ def run_attribute(label_name="age", k=None):
 
     return {
         "label": label_name,
-        "classes": list(le.classes_),
+        "classes": len(le.classes_),
         "k":k,
         "f1_macro": f1_macro,
         "auc": auc,
-        "model": clf
+        # "model": clf
     }
 
-  
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser(description=__doc__)
-    # parser.add_argument("--attributes", nargs="+", choices=ATTRIBUTES, default=ATTRIBUTES)
-    # parser.add_argument("--ks", nargs="+", type=int, default=[2, 4, 8, 16])
-    # parser.add_argument("--seeds", nargs="+", type=int, default=[42])
-    # parser.add_argument("--encoder", default="sentence-transformers/all-mpnet-base-v2")
-    # args = parser.parse_args()
 
     ATTRIBUTES = ["age", "gender", "employment_status", "education", "marital_status"]
 
-    res = run_attribute("age")
-    print(res)
 
-    res = run_attribute("age", 2)
-    print(res)
+    for att in ATTRIBUTES:
+        res = run_attribute("age")
+        pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=False)
 
+        res = run_attribute("age", 2)
+        pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=False)
+
+        res = run_attribute("age", 4)
+        pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=False)
+
+        res = run_attribute("age", 4)
+        pd.DataFrame(res).to_csv("results.csv", mode="a", header=not os.path.exists("results.csv"), index=False)
