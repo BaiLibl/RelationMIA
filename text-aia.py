@@ -17,7 +17,7 @@ from sklearn.preprocessing import LabelEncoder
 
 # TEXTS = ["prompt", "chosen", "rejected"]
 
-def build_user_features(path,  k=None):
+def build_user_features(path):
     print("build feature .....")
     df = pd.read_json(path, lines=True)
     encoder = SentenceTransformer("BAAI/bge-m3", device="cuda" if torch.cuda.is_available() else "cpu")
@@ -35,6 +35,9 @@ def build_user_features(path,  k=None):
     feat_df.columns = [f"f{i}" for i in range(row_feat.shape[1])]
     feat_df["user_id"] = df["user_id"].to_numpy()
 
+    return df, feat_df
+
+def aggregate_by_k(df, feat_df, k=None):
      # 每个 user 只保留前 k 行
     if k is not None:
         feat_df = feat_df.groupby("user_id", sort=False).head(k)
@@ -49,23 +52,9 @@ def build_user_features(path,  k=None):
     out = user_feat.join(user_profile).reset_index()
     out["feature"] = out[feat_cols].apply(lambda row: row.to_numpy(dtype=np.float32), axis=1)
     out = out[["user_id", "feature", *profile_cols]]
-    return out
+    return out 
 
-
-def run_attribute(label_name="age", k=None):
-
-    return {
-        "label": label_name,
-        "classes":3,
-        "k":k,
-        "f1_macro": 0,
-        "auc": 0,
-        # "model": clf
-    }
-
-    
-    train_df = build_user_features("../data/PRISM/train.jsonl", k)
-    test_df = build_user_features("../data/PRISM/test.jsonl",k )
+def run_attribute(train_df, test_df, label_name="age", k=None):
 
     # text label -> label number
     le = LabelEncoder()
@@ -118,7 +107,6 @@ def run_attribute(label_name="age", k=None):
         "k":k,
         "f1_macro": f1_macro,
         "auc": auc,
-        # "model": clf
     }
 
 
@@ -131,10 +119,12 @@ if __name__ == "__main__":
         header = not os.path.exists(csv_path)
         df.to_csv(csv_path, mode="a", header=header, index=False, encoding="utf-8")
 
+    train_df, train_feature_df = build_user_features("../data/PRISM/train.jsonl")
+    test_df, test_feature_df = build_user_features("../data/PRISM/test.jsonl")
 
-    if __name__ == "__main__":
-        for att in ATTRIBUTES:
-            for k in [None, 2, 4, 8]:
-                res = run_attribute(att) if k is None else run_attribute(att, k)
-                append_res(res)
-                print(res["label"], res["k"], res["f1_macro"], res["auc"])
+    for att in ATTRIBUTES:
+        for k in [None, 2, 4, 8]:
+            train_data = aggregate_by_k(train_df, train_feature_df, k)
+            test_data  = aggregate_by_k(test_df, test_feature_df, k)
+            res = run_attribute(train_data, test_data, att, k)
+            append_res(res)
