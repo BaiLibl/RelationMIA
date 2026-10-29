@@ -103,7 +103,7 @@ def load_stackexchange(n_train, n_eval, for_dpo=False, n_members=0, n_nonmembers
 
 def load_prism(n_train, n_eval, for_dpo=False, n_members=0, n_nonmembers=0):
     train_raw = load_dataset("json", data_files="../data/PRISM/train.jsonl", split="train")
-    eval_raw = load_dataset("json", data_files="../data/PRISM/test.jsonl", split="train")
+    eval_raw = load_dataset("json", data_files="../data/PRISM/test.jsonl", split="test")
 
     train_raw = train_raw.select(range(min(n_train, len(train_raw))))
     eval_raw = eval_raw.select(range(min(n_eval, len(eval_raw))))
