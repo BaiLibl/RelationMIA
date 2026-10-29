@@ -11,7 +11,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.metrics import f1_score, roc_auc_score, precision_score, recall_score
 from sklearn.preprocessing import LabelEncoder
 
 
@@ -86,7 +86,10 @@ def run_attribute(train_df, test_df, label_name="age", k=None):
     prob_Y = clf.predict_proba(test_X)
 
     # 指标：F1 + AUC
-    f1_macro = f1_score(test_Y, pred_Y, average="macro")
+    precision_macro = precision_score(test_Y, pred_Y, average="macro", zero_division=0)
+    recall_macro = recall_score(test_Y, pred_Y, average="macro", zero_division=0)
+    f1_macro = f1_score(test_Y, pred_Y, average="macro", zero_division=0)
+
 
     if n_classes == 2:
         # 二分类：正类概率
@@ -106,6 +109,8 @@ def run_attribute(train_df, test_df, label_name="age", k=None):
         "classes": len(le.classes_),
         "k":k,
         "f1_macro": f1_macro,
+        "precision": precision_macro,
+        "recall": recall_macro,
         "auc": auc,
     }
 

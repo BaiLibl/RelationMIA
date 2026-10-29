@@ -103,11 +103,11 @@ def load_stackexchange(n_train, n_eval, for_dpo=False, n_members=0, n_nonmembers
 
 def load_prism(n_train, n_eval, for_dpo=False, n_members=0, n_nonmembers=0):
     train_raw = load_dataset("json", data_files="../data/PRISM/train.jsonl", split="train")
-    eval_raw = load_dataset("json", data_files="../data/PRISM/test.jsonl", split="test")
+    eval_raw = load_dataset("json", data_files="../data/PRISM/test.jsonl", split="train")
 
     train_raw = train_raw.select(range(min(n_train, len(train_raw))))
     eval_raw = eval_raw.select(range(min(n_eval, len(eval_raw))))
-    train_raw, eval_raw = _limit_splits(train_raw, eval_raw, n_members, n_nonmembers)
+    # train_raw, eval_raw = _limit_splits(train_raw, eval_raw, n_members, n_nonmembers) # use all
 
     def fmt(row):
         prompt = row["prompt"].rstrip() + "\n"
@@ -122,13 +122,13 @@ def load_prism(n_train, n_eval, for_dpo=False, n_members=0, n_nonmembers=0):
                 "rejected": rejected,
                 "score_chosen": row["chosen_score"],
                 "score_rejected": row["rejected_score"],
-                # "len_chosen": len(chosen),
-                # "len_rejected": len(rejected),
-                # "age": row["age"],
-                # "gender": row["gender"],
-                # "employment_status": row["employment_status"],
-                # "education": row["education"],
-                # "marital_status": row["marital_status"],
+                "len_chosen": len(chosen),
+                "len_rejected": len(rejected),
+                "age": row["age"],
+                "gender": row["gender"],
+                "employment_status": row["employment_status"],
+                "education": row["education"],
+                "marital_status": row["marital_status"],
             }
 
         return {"prompt": prompt, "completion": " " + chosen.lstrip()}
