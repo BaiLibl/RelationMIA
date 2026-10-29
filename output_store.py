@@ -49,7 +49,7 @@ def build_dpo_trainer(model, tokenizer, train_ds, eval_ds):
         gradient_accumulation_steps=1,
         fp16=torch.cuda.is_available(),
         max_length=1024,
-        max_prompt_length=256,
+        # max_prompt_length=256,
         truncation_mode="keep_end",
         report_to="none",
     )

@@ -123,7 +123,7 @@ def run_dpo(args, paths):
         warmup_steps=100,
         beta=0.4,
         optim="adamw_torch",
-        max_prompt_length=256,
+        # max_prompt_length=256,
         max_length=1024,
         fp16=torch.cuda.is_available(),
         remove_unused_columns=False,

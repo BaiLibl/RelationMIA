@@ -24,7 +24,7 @@ def model_run_name(model_name, sft_data, dpo_data):
     return f"{model_name}-{sft_data}-{dpo_data}"
 
 
-def model_paths(model_name, sft_data, dpo_data, root="/data/baili/models"):
+def model_paths(model_name, sft_data, dpo_data, root="../models"):
     run_name = model_run_name(model_name, sft_data, dpo_data)
     return {
         "sft": os.path.join(root, run_name, "sft", "final"),
