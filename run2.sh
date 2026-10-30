@@ -1,5 +1,5 @@
 # bash run2.sh > log.txt 2>&1
-
+# test
 #2026-10-12
 CUDA_VISIBLE_DEVICES=0 python pert_store.py \
   --model_name qwen-0.5b \
