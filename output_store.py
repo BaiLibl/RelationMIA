@@ -69,8 +69,8 @@ def collect_logprobs(trainer, model, ref_model=None, max_samples=2000):
     def process(dataloader, label):
         seen = 0
         for batch in tqdm(dataloader):
-            if seen >= max_samples:
-                break
+            # if seen >= max_samples:
+            #     break
             with torch.no_grad():
                 out = trainer.concatenated_forward(model, batch)
                 row = {
@@ -85,7 +85,8 @@ def collect_logprobs(trainer, model, ref_model=None, max_samples=2000):
                     torch.cuda.empty_cache()
 
             batch_size = len(row["m_chosen"])
-            for i in range(min(batch_size, max_samples - seen)):
+            # for i in range(min(batch_size, max_samples - seen)):
+            for i in range(batch_size):
                 sample = {key: value[i] for key, value in row.items()}
                 sample["label"] = label
                 rows.append(sample)
