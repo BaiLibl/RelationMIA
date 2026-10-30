@@ -17,6 +17,8 @@ def default_split_sizes(dataset_name):
         return 50000, 10000
     if name == "se":
         return 80000, 10000
+    if name == 'prism':
+        return 29330, 11574 # train, eval
     return 10000, 10000
 
 

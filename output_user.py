@@ -52,7 +52,12 @@ def build_dpo_trainer(model, tokenizer, train_ds, eval_ds):
         max_prompt_length=256,
         truncation_mode="keep_end",
         report_to="none",
+        remove_unused_columns=False,
     )
+
+
+
+
     return DPOTrainer(
         model=model,
         args=cfg,
@@ -64,17 +69,38 @@ def build_dpo_trainer(model, tokenizer, train_ds, eval_ds):
 
 def collect_logprobs(trainer, model, ref_model=None, max_samples=2000):
     rows = []
-    
+    print('here')
+    print("Train dataset columns:", trainer.train_dataset.column_names)
+    original_collator = trainer.data_collator
+
+    user_fields = [
+        "user_id", "age", "gender",
+        "employment_status", "education", "marital_status"
+    ]
+
+    def metadata_collator(features):
+        batch = original_collator(features)
+
+        for field in user_fields:
+            batch[field] = [f[field] for f in features]
+
+        return batch
+
+    trainer.data_collator = metadata_collator
     def process(dataloader, label):
         seen = 0
         for batch in tqdm(dataloader, desc=f"label={label}"):
+        # for batch in dataloader:
+            # print(batch.keys())
             if seen >= max_samples:
                 break 
             # 1. 提取元数据 (在送入模型前，从 batch 中直接拿)
             # 注意：TRL collator 通常会把无法转 tensor 的字段保留为 list
-            user_fields = ["user_id", "age", "gender", "employment_status", "education", "marital_status"]
+            # print(batch.keys())
             meta = {field: batch[field] for field in user_fields if field in batch}
             
+            # print(len(meta))
+            # print(meta)
             # 2. 送模型 (去掉额外字段，防止报错)
             model_inputs = trainer._prepare_inputs(batch)
             with torch.no_grad():
